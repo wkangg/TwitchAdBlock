@@ -77,12 +77,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y build-essential checkinstall git autoconf automake libtool-bin rsync llvm xmlstarlet
-          curl -L https://github.com/libimobiledevice/libplist/releases/download/2.4.0/libplist-2.4.0.tar.bz2 | bzip2 -d | tar -x
-          cd libplist*
-          ./configure
-          sudo make install
-          sudo ldconfig
+          sudo apt install -y rsync llvm xmlstarlet libplist-utils
 
       - name: Download IPA
         env:
@@ -120,16 +115,15 @@ jobs:
           submodules: recursive
 
       - name: Install theos-jailed
-        run: |
-          ./theos-jailed/install
-          cd libplist*
-          sudo make uninstall
+        run: ./theos-jailed/install
 
       - name: Build IPA
         run: make package
         env:
           FINALPACKAGE: 1
           SIDELOADED: 1
+          # theos-jailed defaults to zip -9 for final packages, which is slow on a ~200 MB IPA
+          COMPRESSION: 6
           IPA: ${{ github.workspace }}/App.ipa
           APP_VERSION: ${{ steps.ipa_info.outputs.version }}
 
