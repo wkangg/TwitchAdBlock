@@ -16,7 +16,7 @@ on:
 jobs:
   deb:
     if: ${{ github.event_name == 'push' }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
@@ -57,7 +57,7 @@ jobs:
 
   ipa:
     if: ${{ github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
@@ -77,24 +77,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y rsync llvm xmlstarlet
-
-      # theos-jailed needs plistutil from libplist >= 2.3 (OpenStep plist support, which
-      # Ubuntu's 2.2.0 lacks), so build it once into a cached prefix
-      - name: Cache libplist
-        id: libplist_cache
-        uses: actions/cache@v6
-        with:
-          path: ~/libplist
-          key: libplist-2.4.0-${{ runner.os }}-ubuntu-22.04
-
-      - name: Build libplist
-        if: ${{ steps.libplist_cache.outputs.cache-hit != 'true' }}
-        run: |
-          curl -L https://github.com/libimobiledevice/libplist/releases/download/2.4.0/libplist-2.4.0.tar.bz2 | tar -xj
-          cd libplist-2.4.0
-          ./configure --prefix="$HOME/libplist" --without-cython
-          make -j"$(nproc)" install
+          # theos-jailed needs plistutil from libplist >= 2.3 for the OpenStep-format Substrate
+          # Info.plist; 24.04 ships 2.3.0 (22.04's 2.2.0 fails on it and still exits 0)
+          sudo apt install -y rsync llvm xmlstarlet libplist-utils
 
       - name: Download IPA
         env:
@@ -133,8 +118,9 @@ jobs:
 
       - name: Install theos-jailed
         run: |
-          # Only expose libplist here, as before, so Theos leaves resource plists alone
-          PATH="$HOME/libplist/bin:$PATH" LD_LIBRARY_PATH="$HOME/libplist/lib" ./theos-jailed/install
+          ./theos-jailed/install
+          # Remove plistutil again so Theos leaves resource plists as XML, as before
+          sudo dpkg -r libplist-utils
 
       - name: Build IPA
         run: make package
