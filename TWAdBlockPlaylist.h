@@ -14,6 +14,8 @@
 // Break announcements: twitch-stitched-* and twitch-trigger ranges, EXT-X-CUE-OUT
 @property(nonatomic, readonly) NSInteger adRanges;
 @property(nonatomic, readonly) NSInteger mafAdRanges;
+// twitch-ad-quartile ranges (vaft counts them as not an ad on their own)
+@property(nonatomic, readonly) NSInteger quartileRanges;
 @property(nonatomic, readonly, copy) NSString *rollType;
 @property(nonatomic, readonly, copy) NSString *adTitle;
 @property(nonatomic, readonly, copy) NSArray<NSString *> *adSegmentURLs;

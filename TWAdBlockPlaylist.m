@@ -88,6 +88,8 @@ static BOOL isAdDateRange(NSString *line) {
           playlist->_rollType = TWAdBlockAttribute(line, @"X-TV-TWITCH-AD-ROLL-TYPE");
       } else if ([rangeClass isEqualToString:@"twitch-maf-ad"]) {
         playlist->_mafAdRanges++;
+      } else if ([rangeClass isEqualToString:@"twitch-ad-quartile"]) {
+        playlist->_quartileRanges++;
       }
     }
   }
@@ -103,6 +105,7 @@ static BOOL isAdDateRange(NSString *line) {
   if (self.adRanges)
     return [NSString stringWithFormat:@"announced (ad range, roll=%@)", self.rollType ?: @"?"];
   if (self.mafAdRanges) return @"maf-ad slot (client-side ad)";
+  if (self.quartileRanges) return @"quartile range outside break";
   return @"clean";
 }
 @end

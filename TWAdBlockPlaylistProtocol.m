@@ -83,8 +83,9 @@ static void logMedia(NSURL *URL, NSString *text) {
   if ([lastState isEqualToString:state]) return;
   TWAdBlockLog(@"MEDIA %@ seq=%ld %@", shortID(URL), (long)playlist.sequence, state);
   // The announcing and first ad playlist of a break, in full (a 12000-character cap used to cut
-  // off the ad segments)
-  if ((playlist.adSegments || playlist.adRanges) &&
+  // off the ad segments), and the first one with quartile ranges but no ads (to tell whether
+  // twitch-ad-quartile can mean live video)
+  if ((playlist.adSegments || playlist.adRanges || playlist.quartileRanges) &&
       ![[lastState componentsSeparatedByString:@" "].firstObject isEqualToString:kind])
     TWAdBlockLog(@"MEDIA %@ playlist:\n%@", shortID(URL), text);
 }
