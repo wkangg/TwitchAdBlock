@@ -6,3 +6,6 @@
 + (BOOL)isPlayerSessionDelegate:(id)delegate;
 + (NSURLSessionConfiguration *)configurationByAddingProtocol:(NSURLSessionConfiguration *)configuration;
 @end
+
+// Seconds since the player last got a media playlist with ads or a break announcement, -1 if never
+NSTimeInterval TWAdBlockSecondsSinceAdPlaylist(void);

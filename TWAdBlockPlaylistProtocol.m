@@ -20,6 +20,13 @@ static BOOL isMediaPlaylist(NSURL *URL) {
   return [host hasSuffix:@".ttvnw.net"] || [host hasSuffix:@".live-video.net"];
 }
 
+static _Atomic CFAbsoluteTime lastAdPlaylistTime;
+
+NSTimeInterval TWAdBlockSecondsSinceAdPlaylist(void) {
+  CFAbsoluteTime time = lastAdPlaylistTime;
+  return time ? CFAbsoluteTimeGetCurrent() - time : -1;
+}
+
 static NSString *shortID(NSURL *URL) {
   NSString *name = URL.path.lastPathComponent.stringByDeletingPathExtension;
   return name.length > 8 ? [name substringFromIndex:name.length - 8] : name;
@@ -58,6 +65,7 @@ static void logMaster(NSURL *URL, NSString *text) {
 
 static void logMedia(NSURL *URL, NSString *text) {
   TWAdBlockMediaPlaylist *playlist = [TWAdBlockMediaPlaylist playlistWithText:text];
+  if (playlist.adSegments || playlist.adRanges) lastAdPlaylistTime = CFAbsoluteTimeGetCurrent();
   NSString *state = playlist.stateDescription;
   NSString *kind = [state componentsSeparatedByString:@" "].firstObject;
   // Log only changes per playlist, so a long stream doesn't flood the log
@@ -76,7 +84,7 @@ static void logMedia(NSURL *URL, NSString *text) {
   TWAdBlockLog(@"MEDIA %@ seq=%ld %@", shortID(URL), (long)playlist.sequence, state);
   // The announcing and first ad playlist of a break, in full (a 12000-character cap used to cut
   // off the ad segments)
-  if ((playlist.adSegments || playlist.stitchedAdRanges) &&
+  if ((playlist.adSegments || playlist.adRanges) &&
       ![[lastState componentsSeparatedByString:@" "].firstObject isEqualToString:kind])
     TWAdBlockLog(@"MEDIA %@ playlist:\n%@", shortID(URL), text);
 }

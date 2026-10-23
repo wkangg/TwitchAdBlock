@@ -136,9 +136,9 @@ static NSString *queryEncode(NSString *value) {
   TWAdBlockMediaPlaylist *playlist = [TWAdBlockMediaPlaylist playlistWithText:text];
   // Even when ads pass through, the player gets no ad markers, so the ad UI never starts
   NSString *original = TWAdBlockHasAdMarkers(text) ? TWAdBlockCleanPlaylist(text, NSNotFound) : text;
-  // Swap from the announcing poll on (a stitched-ad range before any ad segment), like vaft does:
+  // Swap from the announcing poll on (an ad range before any ad segment), like vaft does:
   // midroll ads still played for a few seconds when the swap waited for ad-titled segments
-  if (!playlist.adSegments && !playlist.stitchedAdRanges) return completion(original);
+  if (!playlist.adSegments && !playlist.adRanges) return completion(original);
   dispatch_async(self.queue, ^{
     if (![playlist.rollType isEqualToString:@"MIDROLL"]) [self fetchOneAdSegment:playlist URL:URL];
     TWAdBlockMediaInfo *info = self.media[URL.path];
@@ -275,6 +275,8 @@ static NSString *queryEncode(NSString *value) {
       completion:^(NSData *data, NSInteger status) {
         NSDictionary *json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
         NSDictionary *payload = [json isKindOfClass:NSDictionary.class] ? json[@"data"] : nil;
+        // vaft: embed answers without the data wrapper
+        if (![payload isKindOfClass:NSDictionary.class]) payload = json;
         NSDictionary *token = [payload isKindOfClass:NSDictionary.class]
                                   ? payload[@"streamPlaybackAccessToken"]
                                   : nil;

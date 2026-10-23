@@ -3,13 +3,16 @@
 // HLS parsing for Twitch playlists. Ad detection follows Purple Adblock's findings
 // (github.com/arthurbolsoni/Purple-adblock, Apache-2.0): live segments are titled "live", ad
 // segments carry another title (Amazon|…, DCM, FT|…) inside a twitch-stitched-ad DATERANGE;
-// twitch-maf-ad ranges are client-side ad slots.
+// twitch-maf-ad ranges are client-side ad slots. Extra markers from ryanbr's vaft fork
+// (github.com/ryanbr/TwitchAdSolutions): any twitch-stitched-* class, twitch-trigger ranges and
+// EXT-X-CUE-OUT announce a break; segment URLs with /adsquared/, /_404/ or /processing are ads.
 
 @interface TWAdBlockMediaPlaylist : NSObject
 @property(nonatomic, readonly) NSInteger sequence;
 @property(nonatomic, readonly) NSInteger liveSegments;
 @property(nonatomic, readonly) NSInteger adSegments;
-@property(nonatomic, readonly) NSInteger stitchedAdRanges;
+// Break announcements: twitch-stitched-* and twitch-trigger ranges, EXT-X-CUE-OUT
+@property(nonatomic, readonly) NSInteger adRanges;
 @property(nonatomic, readonly) NSInteger mafAdRanges;
 @property(nonatomic, readonly, copy) NSString *rollType;
 @property(nonatomic, readonly, copy) NSString *adTitle;
@@ -26,8 +29,10 @@
 @property(nonatomic, readonly, copy) NSString *video;  // "chunked", "720p60", …
 @property(nonatomic, readonly, copy) NSString *resolution;
 @property(nonatomic, readonly) NSInteger bandwidth;
+@property(nonatomic, readonly, copy) NSString *codecFamily;  // "avc", "hevc", "av1" or nil
 + (NSArray<TWAdBlockVariant *> *)variantsInMaster:(NSString *)text;
-// Same video name, else same resolution, else closest bandwidth
+// Same codec family when there is one (a codec switch inside one playlist shows nothing), then
+// same video name, else same resolution, else closest bandwidth
 - (TWAdBlockVariant *)closestIn:(NSArray<TWAdBlockVariant *> *)variants;
 @end
 

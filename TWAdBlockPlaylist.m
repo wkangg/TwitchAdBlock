@@ -30,12 +30,22 @@ static NSDate *parseDate(NSString *string) {
   }
 }
 
+// twitch-stitched-ad and newer twitch-stitched-* variants, and twitch-trigger (vaft: only ever seen
+// during breaks)
+static BOOL isBreakClass(NSString *rangeClass) {
+  return [rangeClass hasPrefix:@"twitch-stitched"] || [rangeClass isEqualToString:@"twitch-trigger"];
+}
+
+static BOOL isAdSegmentURL(NSString *URL) {
+  return [URL containsString:@"/adsquared/"] || [URL containsString:@"/_404/"] ||
+         [URL containsString:@"/processing"];
+}
+
 static BOOL isAdDateRange(NSString *line) {
   if (![line hasPrefix:@"#EXT-X-DATERANGE:"]) return NO;
   NSString *rangeClass = TWAdBlockAttribute(line, @"CLASS");
   // Purple F-20: with these gone the app's ad UI doesn't start
-  return [rangeClass isEqualToString:@"twitch-stitched-ad"] ||
-         [rangeClass isEqualToString:@"twitch-ad-quartile"] ||
+  return isBreakClass(rangeClass) || [rangeClass isEqualToString:@"twitch-ad-quartile"] ||
          [rangeClass isEqualToString:@"twitch-maf-ad"];
 }
 
@@ -45,34 +55,35 @@ static BOOL isAdDateRange(NSString *line) {
   playlist->_sequence = NSNotFound;
   NSDate *pendingDate;
   NSMutableArray<NSString *> *adSegmentURLs = [NSMutableArray array];
-  BOOL pendingAdSegment = NO;
+  NSString *pendingTitle;
   for (NSString *line in lines(text)) {
-    if (pendingAdSegment && line.length && ![line hasPrefix:@"#"]) {
-      [adSegmentURLs addObject:line];
-      pendingAdSegment = NO;
+    if (pendingTitle && line.length && ![line hasPrefix:@"#"]) {
+      if ([pendingTitle isEqualToString:@"live"] && !isAdSegmentURL(line)) {
+        playlist->_liveSegments++;
+      } else {
+        playlist->_adSegments++;
+        [adSegmentURLs addObject:line];
+        if (!playlist->_adTitle) playlist->_adTitle = [pendingTitle componentsSeparatedByString:@"|"].firstObject;
+      }
+      pendingTitle = nil;
     } else if ([line hasPrefix:@"#EXT-X-PROGRAM-DATE-TIME:"]) {
       pendingDate = parseDate([line substringFromIndex:25]);
     } else if ([line hasPrefix:@"#EXTINF:"]) {
       NSString *info = [line substringFromIndex:8];
       NSRange comma = [info rangeOfString:@","];
-      NSString *title = comma.location == NSNotFound ? @"" : [info substringFromIndex:comma.location + 1];
+      pendingTitle = comma.location == NSNotFound ? @"" : [info substringFromIndex:comma.location + 1];
       if (!playlist->_firstSegmentDate && pendingDate) {
         playlist->_firstSegmentDate = pendingDate;
         playlist->_segmentDuration = info.doubleValue;
       }
-      if ([title isEqualToString:@"live"]) {
-        playlist->_liveSegments++;
-      } else {
-        playlist->_adSegments++;
-        pendingAdSegment = YES;
-        if (!playlist->_adTitle) playlist->_adTitle = [title componentsSeparatedByString:@"|"].firstObject;
-      }
     } else if ([line hasPrefix:@"#EXT-X-MEDIA-SEQUENCE:"]) {
       playlist->_sequence = [line substringFromIndex:22].integerValue;
+    } else if ([line hasPrefix:@"#EXT-X-CUE-OUT"]) {
+      playlist->_adRanges++;
     } else if ([line hasPrefix:@"#EXT-X-DATERANGE:"]) {
       NSString *rangeClass = TWAdBlockAttribute(line, @"CLASS");
-      if ([rangeClass isEqualToString:@"twitch-stitched-ad"]) {
-        playlist->_stitchedAdRanges++;
+      if (isBreakClass(rangeClass)) {
+        playlist->_adRanges++;
         if (!playlist->_rollType)
           playlist->_rollType = TWAdBlockAttribute(line, @"X-TV-TWITCH-AD-ROLL-TYPE");
       } else if ([rangeClass isEqualToString:@"twitch-maf-ad"]) {
@@ -89,12 +100,23 @@ static BOOL isAdDateRange(NSString *line) {
     return [NSString stringWithFormat:@"ADS %ld/%ld title=%@ roll=%@", (long)self.adSegments,
                                       (long)(self.adSegments + self.liveSegments), self.adTitle,
                                       self.rollType ?: @"?"];
-  if (self.stitchedAdRanges)
-    return [NSString stringWithFormat:@"announced (stitched-ad range, roll=%@)", self.rollType ?: @"?"];
+  if (self.adRanges)
+    return [NSString stringWithFormat:@"announced (ad range, roll=%@)", self.rollType ?: @"?"];
   if (self.mafAdRanges) return @"maf-ad slot (client-side ad)";
   return @"clean";
 }
 @end
+
+// vaft's videoCodecFamily: any entry of CODECS, case-insensitive
+static NSString *codecFamily(NSString *codecs) {
+  for (NSString *part in [codecs.lowercaseString componentsSeparatedByString:@","]) {
+    NSString *codec = [part stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+    if ([codec hasPrefix:@"avc"]) return @"avc";
+    if ([codec hasPrefix:@"hev"] || [codec hasPrefix:@"hvc"]) return @"hevc";
+    if ([codec hasPrefix:@"av0"]) return @"av1";
+  }
+  return nil;
+}
 
 @implementation TWAdBlockVariant
 + (NSArray<TWAdBlockVariant *> *)variantsInMaster:(NSString *)text {
@@ -106,6 +128,7 @@ static BOOL isAdDateRange(NSString *line) {
       pending->_video = TWAdBlockAttribute(line, @"VIDEO");
       pending->_resolution = TWAdBlockAttribute(line, @"RESOLUTION");
       pending->_bandwidth = TWAdBlockAttribute(line, @"BANDWIDTH").integerValue;
+      pending->_codecFamily = codecFamily(TWAdBlockAttribute(line, @"CODECS"));
     } else if (pending && line.length && ![line hasPrefix:@"#"]) {
       pending->_URL = [NSURL URLWithString:line];
       if (pending->_URL) [variants addObject:pending];
@@ -116,6 +139,11 @@ static BOOL isAdDateRange(NSString *line) {
 }
 
 - (TWAdBlockVariant *)closestIn:(NSArray<TWAdBlockVariant *> *)variants {
+  if (self.codecFamily) {
+    NSPredicate *sameFamily = [NSPredicate predicateWithFormat:@"codecFamily == %@", self.codecFamily];
+    NSArray *matching = [variants filteredArrayUsingPredicate:sameFamily];
+    if (matching.count) variants = matching;
+  }
   for (TWAdBlockVariant *variant in variants)
     if (self.video && [variant.video isEqualToString:self.video]) return variant;
   for (TWAdBlockVariant *variant in variants)
@@ -131,8 +159,9 @@ static BOOL isAdDateRange(NSString *line) {
 @end
 
 BOOL TWAdBlockHasAdMarkers(NSString *text) {
-  return [text containsString:@"twitch-stitched-ad"] || [text containsString:@"twitch-ad-quartile"] ||
-         [text containsString:@"twitch-maf-ad"];
+  return [text containsString:@"twitch-stitched"] || [text containsString:@"twitch-ad-quartile"] ||
+         [text containsString:@"twitch-maf-ad"] || [text containsString:@"twitch-trigger"] ||
+         [text containsString:@"#EXT-X-CUE-OUT"];
 }
 
 NSString *TWAdBlockCleanPlaylist(NSString *text, NSInteger sequence) {
@@ -142,7 +171,9 @@ NSString *TWAdBlockCleanPlaylist(NSString *text, NSInteger sequence) {
   NSMutableArray *output = [NSMutableArray array];
   for (NSString *line in lines(text)) {
     if (isAdDateRange(line)) continue;
-    if (dropPrefetch && [line hasPrefix:@"#EXT-X-TWITCH-PREFETCH:"]) continue;
+    if (dropPrefetch &&
+        ([line hasPrefix:@"#EXT-X-TWITCH-PREFETCH:"] || [line hasPrefix:@"#EXT-X-PRELOAD-HINT:"]))
+      continue;
     if (sequence != NSNotFound && [line hasPrefix:@"#EXT-X-MEDIA-SEQUENCE:"]) {
       [output addObject:[NSString stringWithFormat:@"#EXT-X-MEDIA-SEQUENCE:%ld", (long)sequence]];
       continue;

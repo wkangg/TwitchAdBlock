@@ -7,6 +7,38 @@ TWAdBlockAssetResourceLoaderDelegate *assetResourceLoaderDelegate;
 
 // Server-side video ad blocking
 
+// ryanbr's vaft: count client-side ad requests (edge.ads.twitch.tv) and whether a playlist with ads
+// came shortly before; ones with none are ads the playlist swap can't see
+static void logClientAdRequest(NSURLRequest *request) {
+  if (!TWAdBlockLogEnabled() || ![request.URL.host isEqualToString:@"edge.ads.twitch.tv"]) return;
+  NSString *query = request.URL.query ?: @"";
+  NSString *type = [query containsString:@"bp=midroll"]   ? @"midroll"
+                   : [query containsString:@"bp=preroll"] ? @"preroll"
+                                                          : request.URL.path;
+  static NSCountedSet *counts;
+  static NSString *lastURL;
+  static CFAbsoluteTime lastTime;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    counts = [NSCountedSet set];
+  });
+  NSUInteger count;
+  @synchronized(counts) {
+    // One task method can call the other (with a copy of the request)
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if ([request.URL.absoluteString isEqualToString:lastURL] && now - lastTime < 1) return;
+    lastURL = request.URL.absoluteString;
+    lastTime = now;
+    [counts addObject:type];
+    count = [counts countForObject:type];
+  }
+  if (count != 1 && count % 10) return;
+  NSTimeInterval since = TWAdBlockSecondsSinceAdPlaylist();
+  TWAdBlockLog(@"CSAI request #%lu %@ %@ (%@)", (unsigned long)count, type, request.URL.path,
+               since < 0 ? @"no ad playlist yet"
+                         : [NSString stringWithFormat:@"ad playlist %.0f s ago", since]);
+}
+
 %hook NSURLSession
 + (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration
                                   delegate:(id<NSURLSessionDelegate>)delegate
@@ -18,6 +50,7 @@ TWAdBlockAssetResourceLoaderDelegate *assetResourceLoaderDelegate;
                queue);
 }
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request {
+  logClientAdRequest(request);
   if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
   if (![request isKindOfClass:NSMutableURLRequest.class]) request = request.mutableCopy;
   ((NSMutableURLRequest *)request).HTTPBody = [request.HTTPBody twab_requestDataForRequest:request];
@@ -29,6 +62,11 @@ TWAdBlockAssetResourceLoaderDelegate *assetResourceLoaderDelegate;
     ((NSMutableURLRequest *)request).URL = [request.URL twab_URLWithProxyURL:proxyURL];
   else
     return &%orig([self twab_proxySessionWithAddress:proxy], _cmd, request);
+  return %orig;
+}
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request
+                            completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))completionHandler {
+  logClientAdRequest(request);
   return %orig;
 }
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request
