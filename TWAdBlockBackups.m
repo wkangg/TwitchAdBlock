@@ -134,7 +134,9 @@ static NSString *queryEncode(NSString *value) {
   TWAdBlockMediaPlaylist *playlist = [TWAdBlockMediaPlaylist playlistWithText:text];
   // Even when ads pass through, the player gets no ad markers, so the ad UI never starts
   NSString *original = TWAdBlockHasAdMarkers(text) ? TWAdBlockCleanPlaylist(text, NSNotFound) : text;
-  if (!playlist.adSegments) return completion(original);
+  // Swap from the announcing poll on (a stitched-ad range before any ad segment), like vaft does:
+  // midroll ads still played for a few seconds when the swap waited for ad-titled segments
+  if (!playlist.adSegments && !playlist.stitchedAdRanges) return completion(original);
   dispatch_async(self.queue, ^{
     TWAdBlockMediaInfo *info = self.media[URL.path];
     if (!info) {

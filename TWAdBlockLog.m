@@ -2,7 +2,7 @@
 
 extern NSUserDefaults *tweakDefaults;
 
-static const unsigned long long kMaxLogSize = 256 * 1024;
+static const unsigned long long kMaxLogSize = 25 * 1024 * 1024;
 
 static dispatch_queue_t logQueue(void) {
   static dispatch_queue_t queue;

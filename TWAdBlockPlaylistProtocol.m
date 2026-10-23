@@ -74,10 +74,11 @@ static void logMedia(NSURL *URL, NSString *text) {
   }
   if ([lastState isEqualToString:state]) return;
   TWAdBlockLog(@"MEDIA %@ seq=%ld %@", shortID(URL), (long)playlist.sequence, state);
-  // The first ad playlist of a break, in full
-  if (playlist.adSegments && ![[lastState componentsSeparatedByString:@" "].firstObject isEqualToString:kind])
-    TWAdBlockLog(@"MEDIA %@ playlist:\n%@", shortID(URL),
-                 text.length > 12000 ? [text substringToIndex:12000] : text);
+  // The announcing and first ad playlist of a break, in full (a 12000-character cap used to cut
+  // off the ad segments)
+  if ((playlist.adSegments || playlist.stitchedAdRanges) &&
+      ![[lastState componentsSeparatedByString:@" "].firstObject isEqualToString:kind])
+    TWAdBlockLog(@"MEDIA %@ playlist:\n%@", shortID(URL), text);
 }
 
 @interface TWAdBlockPlaylistProtocol ()

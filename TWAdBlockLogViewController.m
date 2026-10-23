@@ -30,6 +30,14 @@
 }
 - (void)reload {
   NSString *contents = TWAdBlockLogContents();
+  // The log can reach 25 MB; a text view that size is unusable, so show the end (share has it all)
+  static const NSUInteger kShownLength = 200 * 1024;
+  if (contents.length > kShownLength) {
+    NSRange range = [contents rangeOfComposedCharacterSequencesForRange:NSMakeRange(
+                                  contents.length - kShownLength, kShownLength)];
+    contents = [@"(Older lines hidden. Share sends the full log.)\n"
+        stringByAppendingString:[contents substringWithRange:range]];
+  }
   self.textView.text = contents.length ? contents : @"Nothing logged yet.";
   if (contents.length)
     [self.textView scrollRangeToVisible:NSMakeRange(self.textView.text.length - 1, 1)];

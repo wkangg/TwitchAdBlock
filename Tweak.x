@@ -135,7 +135,12 @@ static void removeAdControllers(void *ptr) {
   for (int i = 0; i < sizeof(ivars) / sizeof(ivars[0]); i++) {
     Ivar adControllerIvar =
         class_getInstanceVariable(object_getClass(theaterAdController), ivars[i]);
-    if (adControllerIvar) object_setIvar(theaterAdController, adControllerIvar, nil);
+    if (!adControllerIvar) continue;
+    // All Optional<class> in 31.7, so reading them is safe; logs once per controller cleared
+    id adController = object_getIvar(theaterAdController, adControllerIvar);
+    if (!adController) continue;
+    TWAdBlockLog(@"CLIENT AD cleared %s (%@)", ivars[i], NSStringFromClass(object_getClass(adController)));
+    object_setIvar(theaterAdController, adControllerIvar, nil);
   }
 }
 
