@@ -4,14 +4,14 @@
 // (github.com/arthurbolsoni/Purple-adblock, Apache-2.0): live segments are titled "live", ad
 // segments carry another title (Amazon|…, DCM, FT|…) inside a twitch-stitched-ad DATERANGE;
 // twitch-maf-ad ranges are client-side ad slots. Extra markers from ryanbr's vaft fork
-// (github.com/ryanbr/TwitchAdSolutions): any twitch-stitched-* class, twitch-trigger ranges and
+// (github.com/ryanbr/TwitchAdSolutions): any twitch-stitched-* class and
 // EXT-X-CUE-OUT announce a break; segment URLs with /adsquared/, /_404/ or /processing are ads.
 
 @interface TWAdBlockMediaPlaylist : NSObject
 @property(nonatomic, readonly) NSInteger sequence;
 @property(nonatomic, readonly) NSInteger liveSegments;
 @property(nonatomic, readonly) NSInteger adSegments;
-// Break announcements: twitch-stitched-* and twitch-trigger ranges, EXT-X-CUE-OUT
+// Break announcements: twitch-stitched-* ranges, EXT-X-CUE-OUT
 @property(nonatomic, readonly) NSInteger adRanges;
 @property(nonatomic, readonly) NSInteger mafAdRanges;
 // twitch-ad-quartile ranges (vaft counts them as not an ad on their own)

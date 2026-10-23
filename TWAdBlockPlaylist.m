@@ -30,10 +30,10 @@ static NSDate *parseDate(NSString *string) {
   }
 }
 
-// twitch-stitched-ad and newer twitch-stitched-* variants, and twitch-trigger (vaft: only ever seen
-// during breaks)
+// twitch-stitched-ad and newer twitch-stitched-* variants. Not twitch-trigger: vaft counts it, but
+// on iOS it is on every live playlist (stripped with the other ad ranges below)
 static BOOL isBreakClass(NSString *rangeClass) {
-  return [rangeClass hasPrefix:@"twitch-stitched"] || [rangeClass isEqualToString:@"twitch-trigger"];
+  return [rangeClass hasPrefix:@"twitch-stitched"];
 }
 
 static BOOL isAdSegmentURL(NSString *URL) {
@@ -46,7 +46,7 @@ static BOOL isAdDateRange(NSString *line) {
   NSString *rangeClass = TWAdBlockAttribute(line, @"CLASS");
   // Purple F-20: with these gone the app's ad UI doesn't start
   return isBreakClass(rangeClass) || [rangeClass isEqualToString:@"twitch-ad-quartile"] ||
-         [rangeClass isEqualToString:@"twitch-maf-ad"];
+         [rangeClass isEqualToString:@"twitch-maf-ad"] || [rangeClass isEqualToString:@"twitch-trigger"];
 }
 
 @implementation TWAdBlockMediaPlaylist
