@@ -2,12 +2,12 @@ ifeq ($(SIDELOADED),1)
 MODULES = jailed
 endif
 
-PACKAGE_VERSION = 0.1.5
+PACKAGE_VERSION = 0.2.0
 ifdef APP_VERSION
   PACKAGE_VERSION := $(APP_VERSION)-$(PACKAGE_VERSION)
 endif
 
-TARGET := iphone:clang:latest:12.4
+TARGET := iphone:clang:latest:16.4
 INSTALL_TARGET_PROCESSES = Twitch
 
 ARCHS = arm64
@@ -24,6 +24,11 @@ $(TWEAK_NAME)_LOGOS_DEFAULT_GENERATOR = internal
 ifeq ($(SIDELOADED),1)
   $(TWEAK_NAME)_FILES += Sideloaded.x
   CODESIGN_IPA = 0
+  # The original bundle ID of the IPA being patched (tv.twitch or tv.twitch.beta)
+  ifeq ($(TW_BUNDLE_ID),)
+    TW_BUNDLE_ID = tv.twitch
+  endif
+  $(TWEAK_NAME)_CFLAGS += -DTW_BUNDLE_ID=@\"$(TW_BUNDLE_ID)\"
 endif
 
 include $(THEOS_MAKE_PATH)/tweak.mk

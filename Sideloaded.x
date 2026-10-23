@@ -6,7 +6,9 @@
 #import <mach-o/dyld.h>
 #import "fishhook/fishhook.h"
 
+#ifndef TW_BUNDLE_ID
 #define TW_BUNDLE_ID @"tv.twitch"
+#endif
 #define TW_NAME @"Twitch"
 
 %hook NSBundle

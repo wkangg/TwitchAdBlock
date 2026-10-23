@@ -131,6 +131,7 @@ jobs:
           COMPRESSION: 6
           IPA: ${{ github.workspace }}/App.ipa
           APP_VERSION: ${{ steps.ipa_info.outputs.version }}
+          TW_BUNDLE_ID: ${{ steps.ipa_info.outputs.bundle-id }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
