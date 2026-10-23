@@ -77,7 +77,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y rsync llvm xmlstarlet libplist-utils
+          sudo apt install -y rsync llvm xmlstarlet
 
       - name: Download IPA
         env:
@@ -115,7 +115,24 @@ jobs:
           submodules: recursive
 
       - name: Install theos-jailed
-        run: ./theos-jailed/install
+        run: |
+          # theos-jailed only needs `plistutil -f bin -i FILE -o FILE`. Ubuntu's libplist 2.2.0 fails
+          # to parse the Substrate Info.plist (and still exits 0), so use a plistlib shim instead
+          # of building libplist from source. Remove it afterwards so Theos leaves resource plists
+          # alone, as before.
+          mkdir -p "$RUNNER_TEMP/bin"
+          cat > "$RUNNER_TEMP/bin/plistutil" <<'EOF'
+          #!/usr/bin/env python3
+          import plistlib, sys
+          args = dict(zip(sys.argv[1::2], sys.argv[2::2]))
+          with open(args["-i"], "rb") as f:
+              data = plistlib.load(f)
+          with open(args["-o"], "wb") as f:
+              plistlib.dump(data, f, fmt=plistlib.FMT_BINARY)
+          EOF
+          chmod +x "$RUNNER_TEMP/bin/plistutil"
+          PATH="$RUNNER_TEMP/bin:$PATH" ./theos-jailed/install
+          rm "$RUNNER_TEMP/bin/plistutil"
 
       - name: Build IPA
         run: make package
