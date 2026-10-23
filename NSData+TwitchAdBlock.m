@@ -11,15 +11,27 @@
                                               options:NSJSONReadingMutableContainers
                                                 error:&error];
     if (!json || error) return self;
-    if ([json isKindOfClass:NSMutableDictionary.class]) {
-      NSMutableDictionary *jsonDictionary = json;
+    NSArray *operations = [json isKindOfClass:NSArray.class] ? json : @[ json ];
+    for (NSMutableDictionary *operation in operations) {
+      if (![operation isKindOfClass:NSMutableDictionary.class]) continue;
+      NSString *operationName = operation[@"operationName"];
+      NSString *query = operation[@"query"];
+      if (![operationName isKindOfClass:NSString.class]) operationName = nil;
+      if (![query isKindOfClass:NSString.class]) query = nil;
+      // StreamAccessToken, VodAccessToken, ClipAccessToken, PrefetchPlaybackAccessToken,
+      // TheaterPortalPreload (31.x fetches the stream token as part of this query)
+      if (![operationName containsString:@"AccessToken"] &&
+          ![operationName isEqualToString:@"TheaterPortalPreload"] &&
+          ![query containsString:@"PlaybackAccessToken"])
+        continue;
+      NSMutableDictionary *variables = operation[@"variables"];
+      if (![variables isKindOfClass:NSMutableDictionary.class]) continue;
       NSString *platform = [NSUUID UUID].UUIDString;
-      if ([jsonDictionary[@"operationName"] isEqualToString:@"StreamAccessToken"] ||
-          [jsonDictionary[@"query"] containsString:@"StreamAccessToken"] ||
-          [jsonDictionary[@"operationName"] isEqualToString:@"VodAccessToken"])
-        jsonDictionary[@"variables"][@"params"][@"platform"] = platform;
-      else if ([jsonDictionary[@"operationName"] isEqualToString:@"ClipAccessToken"])
-        jsonDictionary[@"variables"][@"tokenParams"][@"platform"] = platform;
+      if (variables[@"platform"]) variables[@"platform"] = platform;
+      for (NSString *key in @[ @"params", @"tokenParams" ]) {
+        NSMutableDictionary *params = variables[key];
+        if ([params isKindOfClass:NSMutableDictionary.class]) params[@"platform"] = platform;
+      }
     }
     modifiedData = [NSJSONSerialization dataWithJSONObject:json options:0 error:&error];
     if (error) return self;

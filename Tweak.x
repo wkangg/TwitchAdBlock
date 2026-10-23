@@ -125,7 +125,8 @@ static void removeAdControllers(void *ptr) {
       class_getInstanceVariable(object_getClass(obj), "theaterAdController");
   if (!theaterAdControllerIvar) return;
   id theaterAdController = object_getIvar(obj, theaterAdControllerIvar);
-  const char *ivars[] = {"displayAdController", "streamDisplayAdStateManager", "vastAdController"};
+  const char *ivars[] = {"displayAdController", "streamDisplayAdStateManager",
+                         "streamDisplayAdPodStateManager", "vastAdController"};
   for (int i = 0; i < sizeof(ivars) / sizeof(ivars[0]); i++) {
     Ivar adControllerIvar =
         class_getInstanceVariable(object_getClass(theaterAdController), ivars[i]);
@@ -188,6 +189,18 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
       Ivar displayAdStateManagerIvar =
           class_getInstanceVariable(object_getClass(self), "displayAdStateManager");
       if (displayAdStateManagerIvar) object_setIvar(self, displayAdStateManagerIvar, nil);
+    }
+  }
+  return self;
+}
+// 31.x
+- (instancetype)initWithThemeManager:(id)themeManager urlController:(id)urlController {
+  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
+  if ((self = %orig)) {
+    // Both are Optional<class> in 31.7, so nil is a valid value
+    for (NSString *name in @[ @"headlinerManager", @"headlinerAdRenderer" ]) {
+      Ivar ivar = class_getInstanceVariable(object_getClass(self), name.UTF8String);
+      if (ivar) object_setIvar(self, ivar, nil);
     }
   }
   return self;

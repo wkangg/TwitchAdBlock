@@ -1,12 +1,6 @@
-#import <Twitch/SettingsSwitchTableViewCell.h>
-#import <Twitch/VersionLabel.h>
-#import <TwitchCoreUI/TWBaseTableViewController.h>
+#import <UIKit/UIKit.h>
 #import "Config.h"
-#import "TWAdBlockSettingsTextFieldTableViewCell.h"
 
-@interface TWAdBlockSettingsViewController
-    : TWBaseTableViewController <SettingsSwitchTableViewCellDelegate, UITextFieldDelegate>
-@property(nonatomic, assign) BOOL adblockEnabled;
-@property(nonatomic, assign) BOOL proxyEnabled;
-@property(nonatomic, assign) BOOL customProxyEnabled;
+// Plain UIKit so it doesn't depend on TwitchCoreUI internals, which change between app versions
+@interface TWAdBlockSettingsViewController : UITableViewController <UITextFieldDelegate>
 @end
