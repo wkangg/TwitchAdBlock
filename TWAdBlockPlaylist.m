@@ -33,7 +33,9 @@ static NSDate *parseDate(NSString *string) {
 static BOOL isAdDateRange(NSString *line) {
   if (![line hasPrefix:@"#EXT-X-DATERANGE:"]) return NO;
   NSString *rangeClass = TWAdBlockAttribute(line, @"CLASS");
+  // Purple F-20: with these gone the app's ad UI doesn't start
   return [rangeClass isEqualToString:@"twitch-stitched-ad"] ||
+         [rangeClass isEqualToString:@"twitch-ad-quartile"] ||
          [rangeClass isEqualToString:@"twitch-maf-ad"];
 }
 
@@ -120,6 +122,11 @@ static BOOL isAdDateRange(NSString *line) {
   return closest;
 }
 @end
+
+BOOL TWAdBlockHasAdMarkers(NSString *text) {
+  return [text containsString:@"twitch-stitched-ad"] || [text containsString:@"twitch-ad-quartile"] ||
+         [text containsString:@"twitch-maf-ad"];
+}
 
 NSString *TWAdBlockCleanPlaylist(NSString *text, NSInteger sequence) {
   NSMutableArray *output = [NSMutableArray array];

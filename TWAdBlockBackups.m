@@ -11,12 +11,12 @@ static NSString *const kTokenQuery =
     @"    authorization {\n      isForbidden\n      forbiddenReasonCode\n    }\n  }\n"
     @"  user(login: $login) {\n    id\n    login\n    profileImageURL(width: 600)\n  }\n}";
 
-// Purple's order (F-09): the 720p types first, the 360p-only ones last. autoplay is the one that
-// was usually clean during prerolls (B-052). mobile_feed tokens came back with server_ads=0 for
-// some channels in testing.
+// mobile_feed (the app's feed previews) first: in testing on 31.7 it was the only clean type during
+// prerolls, at full quality. Then Purple's order (F-09): the 720p types, then the 360p-only ones;
+// autoplay was usually clean during prerolls on the web (B-052).
 static NSArray<NSString *> *backupPlayerTypes(void) {
   return @[
-    @"embed", @"popout", @"site", @"mobile_web", @"frontpage", @"mobile_feed",
+    @"mobile_feed", @"embed", @"popout", @"site", @"mobile_web", @"frontpage",
     @"picture-by-picture", @"autoplay"
   ];
 }
@@ -132,12 +132,14 @@ static NSString *queryEncode(NSString *value) {
                      URL:(NSURL *)URL
               completion:(void (^)(NSString *playlist))completion {
   TWAdBlockMediaPlaylist *playlist = [TWAdBlockMediaPlaylist playlistWithText:text];
-  if (!playlist.adSegments) return completion(text);
+  // Even when ads pass through, the player gets no ad markers, so the ad UI never starts
+  NSString *original = TWAdBlockHasAdMarkers(text) ? TWAdBlockCleanPlaylist(text, NSNotFound) : text;
+  if (!playlist.adSegments) return completion(original);
   dispatch_async(self.queue, ^{
     TWAdBlockMediaInfo *info = self.media[URL.path];
     if (!info) {
       TWAdBlockLog(@"BACKUP no master known for this playlist, passing ads through");
-      return completion(text);
+      return completion(original);
     }
     NSMutableArray<NSString *> *types = [NSMutableArray array];
     NSString *lastClean = self.lastCleanType[info.channel];
@@ -154,7 +156,7 @@ static NSString *queryEncode(NSString *value) {
             playlist:playlist
             deadline:[NSDate dateWithTimeIntervalSinceNow:kPollBudget]
           completion:^(NSString *backup) {
-            completion(backup ?: text);
+            completion(backup ?: original);
           }];
   });
 }

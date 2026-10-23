@@ -33,5 +33,7 @@
 // Value of NAME=… or NAME="…" in an attribute line
 NSString *TWAdBlockAttribute(NSString *line, NSString *name);
 
+BOOL TWAdBlockHasAdMarkers(NSString *text);
+
 // Drops ad DATERANGEs (so the app shows no ad UI) and, unless NSNotFound, sets MEDIA-SEQUENCE
 NSString *TWAdBlockCleanPlaylist(NSString *text, NSInteger sequence);
