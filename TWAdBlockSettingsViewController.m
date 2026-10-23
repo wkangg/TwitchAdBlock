@@ -90,7 +90,8 @@ static NSString *const kDebugLogKey = @"TWAdBlockDebugLog";
     title = LOC(@"settings.adblock.footer", @"Choose whether or not you want to block ads");
   else if (section == self.debugSection)
     title = @"Records the stream tokens, playlists and ad breaks the player sees, to test ad "
-            @"blocking. Playlists aren't recorded while the proxy is on.";
+            @"blocking. While the proxy is on, playlists aren't recorded and ad breaks aren't "
+            @"swapped for backup streams.";
   else
     title = LOC(@"settings.proxy.footer",
                 @"Proxy specific requests through a proxy server based in an ad-free country");

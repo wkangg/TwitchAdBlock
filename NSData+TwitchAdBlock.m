@@ -1,4 +1,5 @@
 #import "NSData+TwitchAdBlock.h"
+#import "TWAdBlockBackups.h"
 #import "TWAdBlockLog.h"
 
 @implementation NSData (TwitchAdBlock)
@@ -27,6 +28,7 @@
         continue;
       NSMutableDictionary *variables = operation[@"variables"];
       if (![variables isKindOfClass:NSMutableDictionary.class]) continue;
+      [TWAdBlockBackups.shared recordTokenRequest:request];
       if (TWAdBlockLogEnabled()) {
         NSDictionary *tokenParams = variables[@"params"] ?: variables[@"tokenParams"];
         if (![tokenParams isKindOfClass:NSDictionary.class]) tokenParams = variables;

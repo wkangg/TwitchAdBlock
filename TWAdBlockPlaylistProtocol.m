@@ -1,10 +1,9 @@
 #import "TWAdBlockPlaylistProtocol.h"
 #import <objc/runtime.h>
+#import "TWAdBlockBackups.h"
 #import "TWAdBlockLog.h"
+#import "TWAdBlockPlaylist.h"
 
-// Ad detection follows Purple Adblock's findings (github.com/arthurbolsoni/Purple-adblock,
-// Apache-2.0): live segments are titled "live"; ad segments carry another title (Amazon|…, FT|…)
-// and sit inside a twitch-stitched-ad DATERANGE. twitch-maf-ad ranges are client-side ad slots.
 
 extern NSUserDefaults *tweakDefaults;
 
@@ -24,15 +23,6 @@ static BOOL isMediaPlaylist(NSURL *URL) {
 static NSString *shortID(NSURL *URL) {
   NSString *name = URL.path.lastPathComponent.stringByDeletingPathExtension;
   return name.length > 8 ? [name substringFromIndex:name.length - 8] : name;
-}
-
-static NSString *attribute(NSString *line, NSString *name) {
-  NSString *pattern = [NSString stringWithFormat:@"%@=(\"[^\"]*\"|[^,]*)", name];
-  NSRange range = [line rangeOfString:pattern options:NSRegularExpressionSearch];
-  if (range.location == NSNotFound) return nil;
-  NSString *value = [line substringWithRange:NSMakeRange(range.location + name.length + 1,
-                                                         range.length - name.length - 1)];
-  return [value stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\""]];
 }
 
 static void logMaster(NSURL *URL, NSString *text) {
@@ -59,7 +49,7 @@ static void logMaster(NSURL *URL, NSString *text) {
   NSMutableArray *variants = [NSMutableArray array];
   for (NSString *line in [text componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]) {
     if (![line hasPrefix:@"#EXT-X-STREAM-INF:"]) continue;
-    NSString *name = attribute(line, @"VIDEO") ?: attribute(line, @"RESOLUTION") ?: @"?";
+    NSString *name = TWAdBlockAttribute(line, @"VIDEO") ?: TWAdBlockAttribute(line, @"RESOLUTION") ?: @"?";
     [variants addObject:name];
   }
   TWAdBlockLog(@"MASTER %@ token[%@] variants[%@] query[%@]", URL.path.lastPathComponent, tokenInfo,
@@ -67,41 +57,9 @@ static void logMaster(NSURL *URL, NSString *text) {
 }
 
 static void logMedia(NSURL *URL, NSString *text) {
-  NSInteger live = 0, ads = 0, stitched = 0, maf = 0;
-  NSString *sequence = @"?", *rollType, *adTitle;
-  for (NSString *line in [text componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]) {
-    if ([line hasPrefix:@"#EXTINF:"]) {
-      NSRange comma = [line rangeOfString:@","];
-      NSString *title = comma.location == NSNotFound ? @"" : [line substringFromIndex:comma.location + 1];
-      if ([title isEqualToString:@"live"]) {
-        live++;
-      } else {
-        ads++;
-        if (!adTitle) adTitle = [title componentsSeparatedByString:@"|"].firstObject;
-      }
-    } else if ([line hasPrefix:@"#EXT-X-MEDIA-SEQUENCE:"]) {
-      sequence = [line substringFromIndex:22];
-    } else if ([line hasPrefix:@"#EXT-X-DATERANGE:"]) {
-      NSString *rangeClass = attribute(line, @"CLASS");
-      if ([rangeClass isEqualToString:@"twitch-stitched-ad"]) {
-        stitched++;
-        rollType = rollType ?: attribute(line, @"X-TV-TWITCH-AD-ROLL-TYPE");
-      } else if ([rangeClass isEqualToString:@"twitch-maf-ad"]) {
-        maf++;
-      }
-    }
-  }
-  NSString *state;
-  if (ads)
-    state = [NSString stringWithFormat:@"ADS %ld/%ld title=%@ roll=%@", (long)ads, (long)(ads + live),
-                                       adTitle, rollType ?: @"?"];
-  else if (stitched)
-    state = [NSString stringWithFormat:@"announced (stitched-ad range, roll=%@)", rollType ?: @"?"];
-  else if (maf)
-    state = @"maf-ad slot (client-side ad)";
-  else
-    state = @"clean";
-
+  TWAdBlockMediaPlaylist *playlist = [TWAdBlockMediaPlaylist playlistWithText:text];
+  NSString *state = playlist.stateDescription;
+  NSString *kind = [state componentsSeparatedByString:@" "].firstObject;
   // Log only changes per playlist, so a long stream doesn't flood the log
   static NSMutableDictionary<NSString *, NSString *> *lastStates;
   static dispatch_once_t once;
@@ -109,16 +67,18 @@ static void logMedia(NSURL *URL, NSString *text) {
     lastStates = [NSMutableDictionary dictionary];
   });
   NSString *key = URL.path;
-  BOOL changed;
+  NSString *lastState;
   @synchronized(lastStates) {
-    changed = ![lastStates[key] isEqualToString:state];
+    lastState = lastStates[key];
     lastStates[key] = state;
   }
-  if (!changed) return;
-  TWAdBlockLog(@"MEDIA %@ seq=%@ %@", shortID(URL), sequence, state);
-  // The first playlist of a break, in full, to build the replacement logic on
-  if (ads || stitched) TWAdBlockLog(@"MEDIA %@ playlist:\n%@", shortID(URL),
-                                    text.length > 6000 ? [text substringToIndex:6000] : text);
+  if ([lastState isEqualToString:state]) return;
+  TWAdBlockLog(@"MEDIA %@ seq=%ld %@", shortID(URL), (long)playlist.sequence, state);
+  // The first ad playlist of a break, in full
+  if (playlist.adSegments && ![[lastState componentsSeparatedByString:@" "].firstObject isEqualToString:kind])
+    TWAdBlockLog(@"MEDIA %@ playlist:
+%@", shortID(URL),
+                 text.length > 12000 ? [text substringToIndex:12000] : text);
 }
 
 @interface TWAdBlockPlaylistProtocol ()
@@ -155,7 +115,8 @@ static void logMedia(NSURL *URL, NSString *text) {
 }
 
 + (BOOL)canInitWithRequest:(NSURLRequest *)request {
-  if (!TWAdBlockLogEnabled() || [self propertyForKey:kHandledKey inRequest:request]) return NO;
+  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"] && !TWAdBlockLogEnabled()) return NO;
+  if ([self propertyForKey:kHandledKey inRequest:request]) return NO;
   // Its own fetch would skip the proxy
   if ([tweakDefaults boolForKey:@"TWAdBlockProxyEnabled"]) return NO;
   return isUsherMaster(request.URL) || isMediaPlaylist(request.URL);
@@ -178,26 +139,52 @@ static void logMedia(NSURL *URL, NSString *text) {
   self.task = [[self.class innerSession]
       dataTaskWithRequest:request
         completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+          NSString *text;
           if (!error && data && [response isKindOfClass:NSHTTPURLResponse.class] &&
-              ((NSHTTPURLResponse *)response).statusCode == 200) {
-            @try {
-              NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-              if (text) {
-                if (isUsherMaster(URL))
-                  logMaster(URL, text);
-                else
-                  logMedia(URL, text);
-              }
-            } @catch (NSException *exception) {
-              TWAdBlockLog(@"analysis failed: %@", exception);
-            }
-          } else if (error) {
+              ((NSHTTPURLResponse *)response).statusCode == 200)
+            text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+          else if (error)
             TWAdBlockLog(@"%@ %@ failed: %@", isUsherMaster(URL) ? @"MASTER" : @"MEDIA",
                          shortID(URL), error.localizedDescription);
+          if (!text) return [weakSelf finishWithData:data response:response error:error];
+          @try {
+            if (isUsherMaster(URL)) {
+              logMaster(URL, text);
+              [TWAdBlockBackups.shared recordMaster:text URL:URL];
+            } else {
+              logMedia(URL, text);
+            }
+          } @catch (NSException *exception) {
+            TWAdBlockLog(@"analysis failed: %@", exception);
           }
-          [weakSelf finishWithData:data response:response error:error];
+          if (isUsherMaster(URL) || ![tweakDefaults boolForKey:@"TWAdBlockEnabled"])
+            return [weakSelf finishWithData:data response:response error:nil];
+          [TWAdBlockBackups.shared
+              playlistForMedia:text
+                           URL:URL
+                    completion:^(NSString *playlist) {
+                      if (playlist == text)
+                        return [weakSelf finishWithData:data response:response error:nil];
+                      [weakSelf finishWithData:[playlist dataUsingEncoding:NSUTF8StringEncoding]
+                                      response:[weakSelf replacedResponse:(NSHTTPURLResponse *)response]
+                                         error:nil];
+                    }];
         }];
   [self.task resume];
+}
+
+// The original response, for a body the protocol replaced
+- (NSHTTPURLResponse *)replacedResponse:(NSHTTPURLResponse *)response {
+  NSMutableDictionary *headers = response.allHeaderFields.mutableCopy;
+  for (NSString *name in response.allHeaderFields) {
+    NSString *lower = name.lowercaseString;
+    if ([lower isEqualToString:@"content-length"] || [lower isEqualToString:@"content-encoding"])
+      [headers removeObjectForKey:name];
+  }
+  return [[NSHTTPURLResponse alloc] initWithURL:self.request.URL
+                                     statusCode:200
+                                    HTTPVersion:@"HTTP/1.1"
+                                   headerFields:headers];
 }
 
 - (void)finishWithData:(NSData *)data response:(NSURLResponse *)response error:(NSError *)error {
