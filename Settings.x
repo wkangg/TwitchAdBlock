@@ -15,10 +15,9 @@ extern NSUserDefaults *tweakDefaults;
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
   if ([self twab_isAdBlockRowAtIndexPath:indexPath tableView:tableView]) {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    UITableViewStyle tableViewStyle = UITableViewStyleGrouped;
-    if (@available(iOS 13, *)) tableViewStyle = UITableViewStyleInsetGrouped;
     return [self.navigationController
-        pushViewController:[[TWAdBlockSettingsViewController alloc] initWithStyle:tableViewStyle]
+        pushViewController:[[TWAdBlockSettingsViewController alloc]
+                               initWithStyle:UITableViewStyleInsetGrouped]
                   animated:YES];
   }
   %orig;
@@ -59,10 +58,8 @@ extern NSUserDefaults *tweakDefaults;
   UIImage *iconImage = [UIImage imageNamed:@"Un-Host-Icon"
                                   inBundle:twCoreUIBundle
              compatibleWithTraitCollection:nil];
-  if (@available(iOS 13, *)) {
-    if (!arrowImage) arrowImage = [UIImage systemImageNamed:@"chevron.right"];
-    if (!iconImage) iconImage = [UIImage systemImageNamed:@"nosign"];
-  }
+  if (!arrowImage) arrowImage = [UIImage systemImageNamed:@"chevron.right"];
+  if (!iconImage) iconImage = [UIImage systemImageNamed:@"nosign"];
   UIImageView *arrowView = [[UIImageView alloc] initWithImage:arrowImage];
   arrowView.tintColor = UIColor.grayColor;
   cell.accessoryView = arrowView;
