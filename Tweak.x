@@ -57,7 +57,8 @@ TWAdBlockAssetResourceLoaderDelegate *assetResourceLoaderDelegate;
   NSURLComponents *components = [NSURLComponents componentsWithURL:URL resolvingAgainstBaseURL:YES];
   components.scheme = @"twab";
   URL = components.URL;
-  if ((self = %orig)) {
+  self = %orig;
+  if (self) {
     [self.resourceLoader setDelegate:assetResourceLoaderDelegate
                                queue:dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0)];
   }
@@ -90,17 +91,20 @@ TWAdBlockAssetResourceLoaderDelegate *assetResourceLoaderDelegate;
 }
 - (BOOL)resourceLoader:(AVAssetResourceLoader *)resourceLoader
     shouldWaitForLoadingOfRequestedResource:(AVAssetResourceLoadingRequest *)loadingRequest {
-  return ![self handleLoadingRequest:loadingRequest] ? %orig : YES;
+  if ([self handleLoadingRequest:loadingRequest]) return YES;
+  return %orig;
 }
 - (BOOL)resourceLoader:(AVAssetResourceLoader *)resourceLoader
     shouldWaitForRenewalOfRequestedResource:(AVAssetResourceRenewalRequest *)renewalRequest {
-  return ![self handleLoadingRequest:renewalRequest] ? %orig : YES;
+  if ([self handleLoadingRequest:renewalRequest]) return YES;
+  return %orig;
 }
 %end
 
 %hook AVPlayer
 - (instancetype)init {
-  if ((self = %orig)) {
+  self = %orig;
+  if (self) {
     [self addObserver:self forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:NULL];
   }
   return self;
@@ -167,7 +171,8 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
 - (instancetype)initWithGraphQL:(_TtC9TwitchKit9TKGraphQL *)graphQL
                    themeManager:(_TtC12TwitchCoreUI21TWDefaultThemeManager *)themeManager {
   if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
-  if ((self = %orig)) {
+  self = %orig;
+  if (self) {
     Ivar headlinerManagerIvar =
         class_getInstanceVariable(object_getClass(self), "headlinerManager");
     if (headlinerManagerIvar) {
@@ -182,7 +187,8 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
                    themeManager:(_TtC12TwitchCoreUI21TWDefaultThemeManager *)themeManager
                   urlController:(_TtC6Twitch13URLController *)urlController {
   if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
-  if ((self = %orig)) {
+  self = %orig;
+  if (self) {
     Ivar headlinerManagerIvar =
         class_getInstanceVariable(object_getClass(self), "headlinerManager");
     if (headlinerManagerIvar) {
@@ -196,7 +202,8 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
 // 31.x
 - (instancetype)initWithThemeManager:(id)themeManager urlController:(id)urlController {
   if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
-  if ((self = %orig)) {
+  self = %orig;
+  if (self) {
     // Both are Optional<class> in 31.7, so nil is a valid value
     for (NSString *name in @[ @"headlinerManager", @"headlinerAdRenderer" ]) {
       Ivar ivar = class_getInstanceVariable(object_getClass(self), name.UTF8String);
