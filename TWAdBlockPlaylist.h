@@ -13,6 +13,7 @@
 @property(nonatomic, readonly) NSInteger mafAdRanges;
 @property(nonatomic, readonly, copy) NSString *rollType;
 @property(nonatomic, readonly, copy) NSString *adTitle;
+@property(nonatomic, readonly, copy) NSArray<NSString *> *adSegmentURLs;
 // Date and duration of the first segment, to line up two playlists of the same stream
 @property(nonatomic, readonly) NSDate *firstSegmentDate;
 @property(nonatomic, readonly) NSTimeInterval segmentDuration;
@@ -35,5 +36,6 @@ NSString *TWAdBlockAttribute(NSString *line, NSString *name);
 
 BOOL TWAdBlockHasAdMarkers(NSString *text);
 
-// Drops ad DATERANGEs (so the app shows no ad UI) and, unless NSNotFound, sets MEDIA-SEQUENCE
+// Drops ad DATERANGEs (so the app shows no ad UI) and, when there were any, low-latency prefetch
+// lines; unless NSNotFound, sets MEDIA-SEQUENCE
 NSString *TWAdBlockCleanPlaylist(NSString *text, NSInteger sequence);

@@ -44,8 +44,13 @@ static BOOL isAdDateRange(NSString *line) {
   TWAdBlockMediaPlaylist *playlist = [[self alloc] init];
   playlist->_sequence = NSNotFound;
   NSDate *pendingDate;
+  NSMutableArray<NSString *> *adSegmentURLs = [NSMutableArray array];
+  BOOL pendingAdSegment = NO;
   for (NSString *line in lines(text)) {
-    if ([line hasPrefix:@"#EXT-X-PROGRAM-DATE-TIME:"]) {
+    if (pendingAdSegment && line.length && ![line hasPrefix:@"#"]) {
+      [adSegmentURLs addObject:line];
+      pendingAdSegment = NO;
+    } else if ([line hasPrefix:@"#EXT-X-PROGRAM-DATE-TIME:"]) {
       pendingDate = parseDate([line substringFromIndex:25]);
     } else if ([line hasPrefix:@"#EXTINF:"]) {
       NSString *info = [line substringFromIndex:8];
@@ -59,6 +64,7 @@ static BOOL isAdDateRange(NSString *line) {
         playlist->_liveSegments++;
       } else {
         playlist->_adSegments++;
+        pendingAdSegment = YES;
         if (!playlist->_adTitle) playlist->_adTitle = [title componentsSeparatedByString:@"|"].firstObject;
       }
     } else if ([line hasPrefix:@"#EXT-X-MEDIA-SEQUENCE:"]) {
@@ -74,6 +80,7 @@ static BOOL isAdDateRange(NSString *line) {
       }
     }
   }
+  playlist->_adSegmentURLs = adSegmentURLs;
   return playlist;
 }
 
@@ -129,9 +136,13 @@ BOOL TWAdBlockHasAdMarkers(NSString *text) {
 }
 
 NSString *TWAdBlockCleanPlaylist(NSString *text, NSInteger sequence) {
+  // vaft: no low-latency prefetch during ads, or the player can fetch and show ad segments the
+  // playlist doesn't list yet
+  BOOL dropPrefetch = TWAdBlockHasAdMarkers(text);
   NSMutableArray *output = [NSMutableArray array];
   for (NSString *line in lines(text)) {
     if (isAdDateRange(line)) continue;
+    if (dropPrefetch && [line hasPrefix:@"#EXT-X-TWITCH-PREFETCH:"]) continue;
     if (sequence != NSNotFound && [line hasPrefix:@"#EXT-X-MEDIA-SEQUENCE:"]) {
       [output addObject:[NSString stringWithFormat:@"#EXT-X-MEDIA-SEQUENCE:%ld", (long)sequence]];
       continue;

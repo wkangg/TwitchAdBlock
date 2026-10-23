@@ -68,6 +68,7 @@ static NSString *queryEncode(NSString *value) {
 @property(nonatomic, strong) NSMutableDictionary<NSString *, TWAdBlockBackupMaster *> *backupMasters;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *lastCleanType;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *nextTypeIndex;
+@property(nonatomic, strong) NSMutableSet<NSString *> *requestedAds;
 @end
 
 @implementation TWAdBlockBackups
@@ -92,6 +93,7 @@ static NSString *queryEncode(NSString *value) {
     _backupMasters = [NSMutableDictionary dictionary];
     _lastCleanType = [NSMutableDictionary dictionary];
     _nextTypeIndex = [NSMutableDictionary dictionary];
+    _requestedAds = [NSMutableSet set];
   }
   return self;
 }
@@ -138,6 +140,7 @@ static NSString *queryEncode(NSString *value) {
   // midroll ads still played for a few seconds when the swap waited for ad-titled segments
   if (!playlist.adSegments && !playlist.stitchedAdRanges) return completion(original);
   dispatch_async(self.queue, ^{
+    if (![playlist.rollType isEqualToString:@"MIDROLL"]) [self fetchOneAdSegment:playlist URL:URL];
     TWAdBlockMediaInfo *info = self.media[URL.path];
     if (!info) {
       TWAdBlockLog(@"BACKUP no master known for this playlist, passing ads through");
@@ -161,6 +164,19 @@ static NSString *queryEncode(NSString *value) {
             completion(backup ?: original);
           }];
   });
+}
+
+// vaft: during a preroll the player never loads the ad (it gets a backup), so load one ad segment
+// per poll ourselves; the preroll otherwise doesn't count as watched. Runs on self.queue.
+- (void)fetchOneAdSegment:(TWAdBlockMediaPlaylist *)playlist URL:(NSURL *)URL {
+  for (NSString *string in playlist.adSegmentURLs) {
+    NSURL *segment = [NSURL URLWithString:string relativeToURL:URL].absoluteURL;
+    if (!segment || [self.requestedAds containsObject:segment.absoluteString]) continue;
+    if (self.requestedAds.count > 500) [self.requestedAds removeAllObjects];
+    [self.requestedAds addObject:segment.absoluteString];
+    [[self.session dataTaskWithURL:segment] resume];
+    return;
+  }
 }
 
 // Runs on self.queue
