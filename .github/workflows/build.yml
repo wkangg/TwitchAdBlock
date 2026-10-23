@@ -8,6 +8,10 @@ on:
         description: "Direct URL to Decrypted IPA file"
         type: string
         required: true
+      bundle_freemote:
+        description: "Bundle Freemote (BTTV emotes)"
+        default: false
+        type: boolean
       create_release:
         description: "Create draft release"
         default: false
@@ -133,10 +137,31 @@ jobs:
           APP_VERSION: ${{ steps.ipa_info.outputs.version }}
           TW_BUNDLE_ID: ${{ steps.ipa_info.outputs.bundle-id }}
 
+      - name: Checkout Freemote
+        if: ${{ inputs.bundle_freemote }}
+        uses: actions/checkout@v7
+        with:
+          repository: wkangg/Freemote
+          path: freemote
+
+      - name: Inject Freemote
+        if: ${{ inputs.bundle_freemote }}
+        run: |
+          ipa=$(ls packages/*.ipa)
+          # Freemote's repo has an old prebuilt deb checked in
+          rm -rf freemote/packages
+          # Inject into the TwitchAdBlock IPA, keeping its file name, then replace it
+          make -C freemote package IPA="$PWD/$ipa" OUTPUT_NAME="$(basename "$ipa")"
+          mv -f freemote/packages/*.ipa "$ipa"
+        env:
+          FINALPACKAGE: 1
+          SIDELOADED: 1
+          COMPRESSION: 6
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.package_info.outputs.id }}_${{ steps.ipa_info.outputs.version }}-${{ steps.package_info.outputs.version }}
+          name: ${{ steps.package_info.outputs.id }}_${{ steps.ipa_info.outputs.version }}-${{ steps.package_info.outputs.version }}${{ inputs.bundle_freemote && '+freemote' || '' }}
           path: packages/*.ipa
           if-no-files-found: error
 
