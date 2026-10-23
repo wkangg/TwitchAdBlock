@@ -1,4 +1,5 @@
 #import "NSData+TwitchAdBlock.h"
+#import "TWAdBlockLog.h"
 
 @implementation NSData (TwitchAdBlock)
 - (NSData *)twab_requestDataForRequest:(NSURLRequest *)request {
@@ -26,6 +27,23 @@
         continue;
       NSMutableDictionary *variables = operation[@"variables"];
       if (![variables isKindOfClass:NSMutableDictionary.class]) continue;
+      if (TWAdBlockLogEnabled()) {
+        NSDictionary *tokenParams = variables[@"params"] ?: variables[@"tokenParams"];
+        if (![tokenParams isKindOfClass:NSDictionary.class]) tokenParams = variables;
+        NSDictionary *extensions = operation[@"extensions"];
+        BOOL persisted = [extensions isKindOfClass:NSDictionary.class] && extensions[@"persistedQuery"];
+        // Header names only: which ones a backup token request will need to copy
+        NSMutableArray *headers = [NSMutableArray array];
+        for (NSString *name in request.allHTTPHeaderFields)
+          if (![name.lowercaseString isEqualToString:@"content-type"] &&
+              ![name.lowercaseString isEqualToString:@"content-length"])
+            [headers addObject:name];
+        TWAdBlockLog(@"GQL %@ playerType=%@ platform=%@ persisted=%@ headers[%@]",
+                     operationName ?: @"(unnamed)", tokenParams[@"playerType"],
+                     tokenParams[@"platform"], persisted ? @"yes" : @"no",
+                     [[headers sortedArrayUsingSelector:@selector(compare:)]
+                         componentsJoinedByString:@","]);
+      }
       NSString *platform = [NSUUID UUID].UUIDString;
       if (variables[@"platform"]) variables[@"platform"] = platform;
       for (NSString *key in @[ @"params", @"tokenParams" ]) {

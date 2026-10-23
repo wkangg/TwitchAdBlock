@@ -16,6 +16,8 @@
 #import "NSURL+TwitchAdBlock.h"
 #import "NSURLSession+TwitchAdBlock.h"
 #import "TWAdBlockAssetResourceLoaderDelegate.h"
+#import "TWAdBlockLog.h"
+#import "TWAdBlockPlaylistProtocol.h"
 #import "fishhook/fishhook.h"
 
 @interface _TtC6Twitch27AssetResourceLoaderDelegate : NSObject <AVAssetResourceLoaderDelegate>

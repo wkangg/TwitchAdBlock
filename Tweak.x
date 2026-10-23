@@ -8,6 +8,15 @@ TWAdBlockAssetResourceLoaderDelegate *assetResourceLoaderDelegate;
 // Server-side video ad blocking
 
 %hook NSURLSession
++ (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration
+                                  delegate:(id<NSURLSessionDelegate>)delegate
+                             delegateQueue:(NSOperationQueue *)queue {
+  if (![TWAdBlockPlaylistProtocol isPlayerSessionDelegate:delegate])
+    return %orig(configuration, delegate, queue);
+  TWAdBlockLog(@"player session created");
+  return %orig([TWAdBlockPlaylistProtocol configurationByAddingProtocol:configuration], delegate,
+               queue);
+}
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request {
   if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
   if (![request isKindOfClass:NSMutableURLRequest.class]) request = request.mutableCopy;
@@ -248,4 +257,7 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
   if (![tweakDefaults objectForKey:@"TWAdBlockCustomProxyEnabled"])
     [tweakDefaults setBool:NO forKey:@"TWAdBlockCustomProxyEnabled"];
   assetResourceLoaderDelegate = [[TWAdBlockAssetResourceLoaderDelegate alloc] init];
+  TWAdBlockLog(@"--- launch: Twitch %@, TwitchAdBlock %@, %@",
+               [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"],
+               PACKAGE_VERSION, NSProcessInfo.processInfo.operatingSystemVersionString);
 }
