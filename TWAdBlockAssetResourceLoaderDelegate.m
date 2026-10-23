@@ -11,9 +11,7 @@ extern NSUserDefaults *tweakDefaults;
   components.scheme = @"https";
   NSMutableURLRequest *request = loadingRequest.request.mutableCopy;
   request.URL = components.URL;
-  NSString *proxy = [tweakDefaults boolForKey:@"TWAdBlockCustomProxyEnabled"]
-                        ? [tweakDefaults stringForKey:@"TWAdBlockProxy"]
-                        : PROXY_ADDR;
+  NSString *proxy = TWAdBlockProxyAddress();
   NSURLSession *session = [[NSURLSession alloc] twab_proxySessionWithAddress:proxy];
   [[session dataTaskWithRequest:request
               completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {

@@ -13,9 +13,7 @@ TWAdBlockAssetResourceLoaderDelegate *assetResourceLoaderDelegate;
   if (![request isKindOfClass:NSMutableURLRequest.class]) request = request.mutableCopy;
   ((NSMutableURLRequest *)request).HTTPBody = [request.HTTPBody twab_requestDataForRequest:request];
   if (![tweakDefaults boolForKey:@"TWAdBlockProxyEnabled"]) return %orig;
-  NSString *proxy = [tweakDefaults boolForKey:@"TWAdBlockCustomProxyEnabled"]
-                        ? [tweakDefaults stringForKey:@"TWAdBlockProxy"]
-                        : PROXY_ADDR;
+  NSString *proxy = TWAdBlockProxyAddress();
   if (![request.URL.host isEqualToString:@"usher.ttvnw.net"]) return %orig;
   NSURL *proxyURL = [NSURL URLWithString:proxy];
   if ([proxyURL.scheme hasPrefix:@"http"])
@@ -30,9 +28,7 @@ TWAdBlockAssetResourceLoaderDelegate *assetResourceLoaderDelegate;
   if (![request isKindOfClass:NSMutableURLRequest.class]) request = request.mutableCopy;
   bodyData = [bodyData twab_requestDataForRequest:request];
   if (![tweakDefaults boolForKey:@"TWAdBlockProxyEnabled"]) return %orig;
-  NSString *proxy = [tweakDefaults boolForKey:@"TWAdBlockCustomProxyEnabled"]
-                        ? [tweakDefaults stringForKey:@"TWAdBlockProxy"]
-                        : PROXY_ADDR;
+  NSString *proxy = TWAdBlockProxyAddress();
   if (![request.URL.host isEqualToString:@"usher.ttvnw.net"]) return %orig;
   NSURL *proxyURL = [NSURL URLWithString:proxy];
   if ([proxyURL.scheme hasPrefix:@"http"])
@@ -49,9 +45,7 @@ TWAdBlockAssetResourceLoaderDelegate *assetResourceLoaderDelegate;
       ![tweakDefaults boolForKey:@"TWAdBlockProxyEnabled"] ||
       ![URL.scheme isEqualToString:@"https"] || ![URL.host isEqualToString:@"usher.ttvnw.net"])
     return %orig;
-  NSURL *proxyURL = [NSURL URLWithString:[tweakDefaults boolForKey:@"TWAdBlockCustomProxyEnabled"]
-                                             ? [tweakDefaults stringForKey:@"TWAdBlockProxy"]
-                                             : PROXY_ADDR];
+  NSURL *proxyURL = [NSURL URLWithString:TWAdBlockProxyAddress()];
   if ([proxyURL.scheme hasPrefix:@"http"])
     return %orig([URL twab_URLWithProxyURL:proxyURL], options);
   NSURLComponents *components = [NSURLComponents componentsWithURL:URL resolvingAgainstBaseURL:YES];
@@ -76,9 +70,7 @@ TWAdBlockAssetResourceLoaderDelegate *assetResourceLoaderDelegate;
   components.scheme = @"https";
   NSMutableURLRequest *request = loadingRequest.request.mutableCopy;
   request.URL = components.URL;
-  NSString *proxy = [tweakDefaults boolForKey:@"TWAdBlockCustomProxyEnabled"]
-                        ? [tweakDefaults stringForKey:@"TWAdBlockProxy"]
-                        : PROXY_ADDR;
+  NSString *proxy = TWAdBlockProxyAddress();
   NSURLSession *session = [[NSURLSession alloc] twab_proxySessionWithAddress:proxy];
   [[session dataTaskWithRequest:request
               completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
