@@ -76,8 +76,7 @@ static void logMedia(NSURL *URL, NSString *text) {
   TWAdBlockLog(@"MEDIA %@ seq=%ld %@", shortID(URL), (long)playlist.sequence, state);
   // The first ad playlist of a break, in full
   if (playlist.adSegments && ![[lastState componentsSeparatedByString:@" "].firstObject isEqualToString:kind])
-    TWAdBlockLog(@"MEDIA %@ playlist:
-%@", shortID(URL),
+    TWAdBlockLog(@"MEDIA %@ playlist:\n%@", shortID(URL),
                  text.length > 12000 ? [text substringToIndex:12000] : text);
 }
 
