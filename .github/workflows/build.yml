@@ -79,6 +79,23 @@ jobs:
           sudo apt update
           sudo apt install -y rsync llvm xmlstarlet
 
+      # theos-jailed needs plistutil from libplist >= 2.3 (OpenStep plist support, which
+      # Ubuntu's 2.2.0 lacks), so build it once into a cached prefix
+      - name: Cache libplist
+        id: libplist_cache
+        uses: actions/cache@v6
+        with:
+          path: ~/libplist
+          key: libplist-2.4.0-${{ runner.os }}-ubuntu-22.04
+
+      - name: Build libplist
+        if: ${{ steps.libplist_cache.outputs.cache-hit != 'true' }}
+        run: |
+          curl -L https://github.com/libimobiledevice/libplist/releases/download/2.4.0/libplist-2.4.0.tar.bz2 | tar -xj
+          cd libplist-2.4.0
+          ./configure --prefix="$HOME/libplist" --without-cython
+          make -j"$(nproc)" install
+
       - name: Download IPA
         env:
           IPA_URL: ${{ inputs.ipa_url }}
@@ -116,23 +133,8 @@ jobs:
 
       - name: Install theos-jailed
         run: |
-          # theos-jailed only needs `plistutil -f bin -i FILE -o FILE`. Ubuntu's libplist 2.2.0 fails
-          # to parse the Substrate Info.plist (and still exits 0), so use a plistlib shim instead
-          # of building libplist from source. Remove it afterwards so Theos leaves resource plists
-          # alone, as before.
-          mkdir -p "$RUNNER_TEMP/bin"
-          cat > "$RUNNER_TEMP/bin/plistutil" <<'EOF'
-          #!/usr/bin/env python3
-          import plistlib, sys
-          args = dict(zip(sys.argv[1::2], sys.argv[2::2]))
-          with open(args["-i"], "rb") as f:
-              data = plistlib.load(f)
-          with open(args["-o"], "wb") as f:
-              plistlib.dump(data, f, fmt=plistlib.FMT_BINARY)
-          EOF
-          chmod +x "$RUNNER_TEMP/bin/plistutil"
-          PATH="$RUNNER_TEMP/bin:$PATH" ./theos-jailed/install
-          rm "$RUNNER_TEMP/bin/plistutil"
+          # Only expose libplist here, as before, so Theos leaves resource plists alone
+          PATH="$HOME/libplist/bin:$PATH" LD_LIBRARY_PATH="$HOME/libplist/lib" ./theos-jailed/install
 
       - name: Build IPA
         run: make package
