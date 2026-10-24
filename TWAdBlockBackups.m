@@ -156,12 +156,15 @@ static NSString *queryEncode(NSString *value) {
     // replayed those seconds
     void (^passOriginal)(void) = ^{
       if (!reference || playlist.sequence == NSNotFound) return completion(original);
-      NSInteger sequence = [self sequenceForDate:playlist.firstSegmentDate alignedTo:reference];
+      NSTimeInterval shift;
+      NSInteger sequence = [self sequenceForDate:playlist.firstSegmentDate
+                                       alignedTo:reference
+                                           shift:&shift];
       if (sequence == NSNotFound) return completion(original);
       NSInteger offset = sequence - playlist.sequence;
       if (offset != reference.offset)
-        TWAdBlockLog(@"BACKUP original seq %ld served as %ld (offset %+ld)", (long)playlist.sequence,
-                     (long)sequence, (long)offset);
+        TWAdBlockLog(@"BACKUP original seq %ld served as %ld (offset %+ld, %+.3f s)",
+                     (long)playlist.sequence, (long)sequence, (long)offset, shift);
       reference.date = playlist.firstSegmentDate;
       reference.sequence = sequence;
       reference.offset = offset;
@@ -266,27 +269,39 @@ static NSString *queryEncode(NSString *value) {
                                reference.date = playlist.firstSegmentDate;
                                reference.sequence = playlist.sequence;
                              }
+                             NSTimeInterval shift;
                              NSInteger sequence = [self sequenceForDate:backup.firstSegmentDate
-                                                              alignedTo:reference];
+                                                              alignedTo:reference
+                                                                  shift:&shift];
                              if (sequence != NSNotFound) {
                                if (self.references.count > 100) [self.references removeAllObjects];
                                reference.date = backup.firstSegmentDate;
                                reference.sequence = sequence;
                                self.references[path] = reference;
                              }
-                             TWAdBlockLog(@"BACKUP %@ %@ %@: clean, serving seq %ld (own %ld)",
+                             TWAdBlockLog(@"BACKUP %@ %@ %@: clean, serving seq %ld (own %ld, %+.3f s)",
                                           info.channel, type, variant.video ?: variant.resolution,
-                                          (long)sequence, (long)backup.sequence);
+                                          (long)sequence, (long)backup.sequence, shift);
                              self.lastCleanType[info.channel] = type;
                              completion(TWAdBlockCleanPlaylist(text, sequence));
                            }];
                      }];
 }
 
-// Purple F-23: number a playlist's first segment as the player numbered the same moment
-- (NSInteger)sequenceForDate:(NSDate *)date alignedTo:(TWAdBlockSequenceReference *)reference {
+// Purple F-23: number a playlist's first segment as the player numbered the same moment. A
+// segment that starts between two of the player's goes to the later number, so the player
+// replays a fraction of a second instead of skipping it (sources can be ~0.25 s apart). shift is
+// how far the segment starts after the moment its number stands for (<= 0 replays).
+- (NSInteger)sequenceForDate:(NSDate *)date
+                   alignedTo:(TWAdBlockSequenceReference *)reference
+                       shift:(NSTimeInterval *)shift {
+  *shift = 0;
   if (!date || !reference.date || reference.sequence == NSNotFound) return NSNotFound;
-  return reference.sequence + (NSInteger)llround([date timeIntervalSinceDate:reference.date] / 2.0);
+  NSTimeInterval interval = [date timeIntervalSinceDate:reference.date];
+  // 0.1 s of slack: ad segments are 2.002 s, and jitter shouldn't cost a 2 s replay
+  NSInteger segments = (NSInteger)ceil(interval / 2.0 - 0.05);
+  *shift = interval - segments * 2.0;
+  return reference.sequence + segments;
 }
 
 - (NSString *)keyForChannel:(NSString *)channel type:(NSString *)type {
