@@ -126,8 +126,6 @@ static void logMedia(NSURL *URL, NSString *text) {
 + (BOOL)canInitWithRequest:(NSURLRequest *)request {
   if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"] && !TWAdBlockLogEnabled()) return NO;
   if ([self propertyForKey:kHandledKey inRequest:request]) return NO;
-  // Its own fetch would skip the proxy
-  if ([tweakDefaults boolForKey:@"TWAdBlockProxyEnabled"]) return NO;
   return isUsherMaster(request.URL) || isMediaPlaylist(request.URL);
 }
 
