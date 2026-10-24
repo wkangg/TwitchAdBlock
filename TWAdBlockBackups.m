@@ -52,6 +52,15 @@ static NSString *queryEncode(NSString *value) {
 @implementation TWAdBlockMediaInfo
 @end
 
+// The first segment of the last playlist given to the player, as the player numbered it
+@interface TWAdBlockSequenceReference : NSObject
+@property(nonatomic, strong) NSDate *date;
+@property(nonatomic, assign) NSInteger sequence;
+@property(nonatomic, assign) NSInteger offset;
+@end
+@implementation TWAdBlockSequenceReference
+@end
+
 @interface TWAdBlockBackupMaster : NSObject
 @property(nonatomic, copy) NSArray<TWAdBlockVariant *> *variants;
 @property(nonatomic, strong) NSDate *date;
@@ -69,6 +78,7 @@ static NSString *queryEncode(NSString *value) {
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *lastCleanType;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *nextTypeIndex;
 @property(nonatomic, strong) NSMutableSet<NSString *> *requestedAds;
+@property(nonatomic, strong) NSMutableDictionary<NSString *, TWAdBlockSequenceReference *> *references;
 @end
 
 @implementation TWAdBlockBackups
@@ -94,6 +104,7 @@ static NSString *queryEncode(NSString *value) {
     _lastCleanType = [NSMutableDictionary dictionary];
     _nextTypeIndex = [NSMutableDictionary dictionary];
     _requestedAds = [NSMutableSet set];
+    _references = [NSMutableDictionary dictionary];
   }
   return self;
 }
@@ -135,16 +146,35 @@ static NSString *queryEncode(NSString *value) {
               completion:(void (^)(NSString *playlist))completion {
   TWAdBlockMediaPlaylist *playlist = [TWAdBlockMediaPlaylist playlistWithText:text];
   // Even when ads pass through, the player gets no ad markers, so the ad UI never starts
-  NSString *original = TWAdBlockHasAdMarkers(text) ? TWAdBlockCleanPlaylist(text, NSNotFound) : text;
-  // Swap from the announcing poll on (an ad range before any ad segment), like vaft does:
-  // midroll ads still played for a few seconds when the swap waited for ad-titled segments
-  if (!playlist.adSegments && !playlist.adRanges) return completion(original);
+  BOOL hasMarkers = TWAdBlockHasAdMarkers(text);
+  NSString *original = hasMarkers ? TWAdBlockCleanPlaylist(text, NSNotFound) : text;
+  BOOL ads = playlist.adSegments || playlist.adRanges;
   dispatch_async(self.queue, ^{
+    TWAdBlockSequenceReference *reference = self.references[URL.path];
+    // Once a backup was served, the original keeps the numbering the player saw: after a break
+    // its own numbers can run seconds ahead of the backup's for the same moment, and the player
+    // replayed those seconds
+    void (^passOriginal)(void) = ^{
+      if (!reference || playlist.sequence == NSNotFound) return completion(original);
+      NSInteger sequence = [self sequenceForDate:playlist.firstSegmentDate alignedTo:reference];
+      if (sequence == NSNotFound) return completion(original);
+      NSInteger offset = sequence - playlist.sequence;
+      if (offset != reference.offset)
+        TWAdBlockLog(@"BACKUP original seq %ld served as %ld (offset %+ld)", (long)playlist.sequence,
+                     (long)sequence, (long)offset);
+      reference.date = playlist.firstSegmentDate;
+      reference.sequence = sequence;
+      reference.offset = offset;
+      completion(offset || hasMarkers ? TWAdBlockCleanPlaylist(text, sequence) : text);
+    };
+    // Swap from the announcing poll on (an ad range before any ad segment), like vaft does:
+    // midroll ads still played for a few seconds when the swap waited for ad-titled segments
+    if (!ads) return passOriginal();
     if (![playlist.rollType isEqualToString:@"MIDROLL"]) [self fetchOneAdSegment:playlist URL:URL];
     TWAdBlockMediaInfo *info = self.media[URL.path];
     if (!info) {
       TWAdBlockLog(@"BACKUP no master known for this playlist, passing ads through");
-      return completion(original);
+      return passOriginal();
     }
     NSMutableArray<NSString *> *types = [NSMutableArray array];
     NSString *lastClean = self.lastCleanType[info.channel];
@@ -159,9 +189,11 @@ static NSString *queryEncode(NSString *value) {
                index:0
                 info:info
             playlist:playlist
+                path:URL.path
             deadline:[NSDate dateWithTimeIntervalSinceNow:kPollBudget]
           completion:^(NSString *backup) {
-            completion(backup ?: original);
+            if (backup) return completion(backup);
+            passOriginal();
           }];
   });
 }
@@ -184,6 +216,7 @@ static NSString *queryEncode(NSString *value) {
            index:(NSUInteger)index
             info:(TWAdBlockMediaInfo *)info
         playlist:(TWAdBlockMediaPlaylist *)playlist
+            path:(NSString *)path
         deadline:(NSDate *)deadline
       completion:(void (^)(NSString *backup))completion {
   if (index >= types.count || deadline.timeIntervalSinceNow <= 0) {
@@ -195,7 +228,13 @@ static NSString *queryEncode(NSString *value) {
   NSUInteger position = [all indexOfObject:type];
   if (position != NSNotFound) self.nextTypeIndex[info.channel] = @((position + 1) % all.count);
   void (^next)(void) = ^{
-    [self tryTypes:types index:index + 1 info:info playlist:playlist deadline:deadline completion:completion];
+    [self tryTypes:types
+               index:index + 1
+                info:info
+            playlist:playlist
+                path:path
+            deadline:deadline
+          completion:completion];
   };
   [self backupVariantForChannel:info.channel
                      playerType:type
@@ -221,7 +260,20 @@ static NSString *queryEncode(NSString *value) {
                                  [self.lastCleanType removeObjectForKey:info.channel];
                                return next();
                              }
-                             NSInteger sequence = [self sequenceFor:backup alignedTo:playlist];
+                             TWAdBlockSequenceReference *reference = self.references[path];
+                             if (!reference) {
+                               reference = [[TWAdBlockSequenceReference alloc] init];
+                               reference.date = playlist.firstSegmentDate;
+                               reference.sequence = playlist.sequence;
+                             }
+                             NSInteger sequence = [self sequenceForDate:backup.firstSegmentDate
+                                                              alignedTo:reference];
+                             if (sequence != NSNotFound) {
+                               if (self.references.count > 100) [self.references removeAllObjects];
+                               reference.date = backup.firstSegmentDate;
+                               reference.sequence = sequence;
+                               self.references[path] = reference;
+                             }
                              TWAdBlockLog(@"BACKUP %@ %@ %@: clean, serving seq %ld (own %ld)",
                                           info.channel, type, variant.video ?: variant.resolution,
                                           (long)sequence, (long)backup.sequence);
@@ -231,13 +283,10 @@ static NSString *queryEncode(NSString *value) {
                      }];
 }
 
-// Purple F-23: number the backup's segments as the original playlist numbers the same moment
-- (NSInteger)sequenceFor:(TWAdBlockMediaPlaylist *)backup alignedTo:(TWAdBlockMediaPlaylist *)original {
-  if (original.sequence == NSNotFound || !original.firstSegmentDate || !backup.firstSegmentDate)
-    return NSNotFound;
-  NSTimeInterval duration = original.segmentDuration > 0 ? original.segmentDuration : 2;
-  NSTimeInterval offset = [backup.firstSegmentDate timeIntervalSinceDate:original.firstSegmentDate];
-  return original.sequence + (NSInteger)llround(offset / duration);
+// Purple F-23: number a playlist's first segment as the player numbered the same moment
+- (NSInteger)sequenceForDate:(NSDate *)date alignedTo:(TWAdBlockSequenceReference *)reference {
+  if (!date || !reference.date || reference.sequence == NSNotFound) return NSNotFound;
+  return reference.sequence + (NSInteger)llround([date timeIntervalSinceDate:reference.date] / 2.0);
 }
 
 - (NSString *)keyForChannel:(NSString *)channel type:(NSString *)type {
