@@ -77,7 +77,7 @@ static void logClientAdRequest(NSURLRequest *request) {
   }
   return self;
 }
-%new
+%new(v@:@@@^v)
 - (void)observeValueForKeyPath:(NSString *)keyPath
                       ofObject:(id)object
                         change:(NSDictionary<NSKeyValueChangeKey, id> *)change

@@ -7,7 +7,7 @@ extern NSUserDefaults *tweakDefaults;
 @end
 
 %hook _TtC6Twitch25AccountMenuViewController
-%new
+%new(B@:@@)
 - (BOOL)twab_isAdBlockRowAtIndexPath:(NSIndexPath *)indexPath tableView:(UITableView *)tableView {
   return indexPath.section == [self numberOfSectionsInTableView:tableView] - 1 &&
          indexPath.row == [self tableView:tableView numberOfRowsInSection:indexPath.section] - 1;
