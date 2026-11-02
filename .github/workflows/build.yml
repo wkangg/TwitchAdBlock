@@ -37,18 +37,17 @@ jobs:
           echo "id=$(cat control | grep "Package:" | cut -d' ' -f2)" >> $GITHUB_OUTPUT
           echo "version=$version" >> $GITHUB_OUTPUT
 
-      # theos-action downloads the Swift toolchain built for this runner's Ubuntu release when its
-      # cache misses (7 days unused, or a new Theos commit), but none exists for 24.04; the 22.04 one
-      # works here
-      - name: Use the 22.04 toolchain
-        run: sudo sed -i 's/^DISTRIB_RELEASE=.*/DISTRIB_RELEASE=22.04/' /etc/lsb-release
+      - name: Theos cache key
+        run: echo "theos_heads=$(git ls-remote https://github.com/theos/theos HEAD | cut -f 1)-$(git ls-remote https://github.com/theos/sdks HEAD | cut -f 1)" >> $GITHUB_ENV
+
+      - name: Cache theos
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/theos
+          key: ${{ runner.os }}-${{ env.theos_heads }}
 
       - name: Setup theos
-        uses: level3tjg/theos-action@main
-        with:
-          cache: true
-          cache-dir-theos: ${{ github.workspace }}/theos
-          cache-dir-sdks: ${{ github.workspace }}/theos/sdks
+        uses: Randomblock1/theos-action@v1
 
       - name: Build rootless deb
         run: make package
@@ -112,18 +111,17 @@ jobs:
           echo "bundle-id=$(echo $info | xmlstarlet sel -t -v "/plist/dict/key[text()=\"CFBundleIdentifier\"]/following-sibling::*[1]/text()")" >> $GITHUB_OUTPUT
           echo "version=$(echo $info | xmlstarlet sel -t -v "/plist/dict/key[text()=\"CFBundleShortVersionString\"]/following-sibling::*[1]/text()")" >> $GITHUB_OUTPUT
 
-      # theos-action downloads the Swift toolchain built for this runner's Ubuntu release when its
-      # cache misses (7 days unused, or a new Theos commit), but none exists for 24.04; the 22.04 one
-      # works here
-      - name: Use the 22.04 toolchain
-        run: sudo sed -i 's/^DISTRIB_RELEASE=.*/DISTRIB_RELEASE=22.04/' /etc/lsb-release
+      - name: Theos cache key
+        run: echo "theos_heads=$(git ls-remote https://github.com/theos/theos HEAD | cut -f 1)-$(git ls-remote https://github.com/theos/sdks HEAD | cut -f 1)" >> $GITHUB_ENV
+
+      - name: Cache theos
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/theos
+          key: ${{ runner.os }}-${{ env.theos_heads }}
 
       - name: Setup theos
-        uses: level3tjg/theos-action@main
-        with:
-          cache: true
-          cache-dir-theos: ${{ github.workspace }}/theos
-          cache-dir-sdks: ${{ github.workspace }}/theos/sdks
+        uses: Randomblock1/theos-action@v1
 
       - name: Checkout theos-jailed
         uses: actions/checkout@v7
