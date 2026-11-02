@@ -37,6 +37,12 @@ jobs:
           echo "id=$(cat control | grep "Package:" | cut -d' ' -f2)" >> $GITHUB_OUTPUT
           echo "version=$version" >> $GITHUB_OUTPUT
 
+      # theos-action downloads the Swift toolchain built for this runner's Ubuntu release when its
+      # cache misses (7 days unused, or a new Theos commit), but none exists for 24.04; the 22.04 one
+      # works here
+      - name: Use the 22.04 toolchain
+        run: sudo sed -i 's/^DISTRIB_RELEASE=.*/DISTRIB_RELEASE=22.04/' /etc/lsb-release
+
       - name: Setup theos
         uses: level3tjg/theos-action@main
         with:
@@ -105,6 +111,12 @@ jobs:
           info=$(unzip -p "${{ github.workspace }}/App.ipa" Payload/*.app/Info.plist)
           echo "bundle-id=$(echo $info | xmlstarlet sel -t -v "/plist/dict/key[text()=\"CFBundleIdentifier\"]/following-sibling::*[1]/text()")" >> $GITHUB_OUTPUT
           echo "version=$(echo $info | xmlstarlet sel -t -v "/plist/dict/key[text()=\"CFBundleShortVersionString\"]/following-sibling::*[1]/text()")" >> $GITHUB_OUTPUT
+
+      # theos-action downloads the Swift toolchain built for this runner's Ubuntu release when its
+      # cache misses (7 days unused, or a new Theos commit), but none exists for 24.04; the 22.04 one
+      # works here
+      - name: Use the 22.04 toolchain
+        run: sudo sed -i 's/^DISTRIB_RELEASE=.*/DISTRIB_RELEASE=22.04/' /etc/lsb-release
 
       - name: Setup theos
         uses: level3tjg/theos-action@main
