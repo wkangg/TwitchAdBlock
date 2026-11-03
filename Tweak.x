@@ -224,7 +224,7 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
   tweakDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"com.level3tjg.twitchadblock"];
   if (![tweakDefaults objectForKey:@"TWAdBlockEnabled"])
     [tweakDefaults setBool:YES forKey:@"TWAdBlockEnabled"];
-  TWAdBlockLog(@"--- launch: Twitch %@, TwitchAdBlock %@, %@",
+  TWAdBlockLog(@"--- launch: Twitch %@, TwitchAdBlock %@ (%@), %@",
                [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"],
-               PACKAGE_VERSION, NSProcessInfo.processInfo.operatingSystemVersionString);
+               PACKAGE_VERSION, GIT_COMMIT, NSProcessInfo.processInfo.operatingSystemVersionString);
 }

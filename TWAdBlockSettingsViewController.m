@@ -49,7 +49,7 @@ static NSString *const kDebugLogKey = @"TWAdBlockDebugLog";
   if (section == 0)
     return LOC(@"settings.adblock.footer", @"Choose whether or not you want to block ads");
   return @"Records the stream tokens, playlists and ad breaks the player sees, to test ad "
-         @"blocking.\n\nTwitchAdBlock v" PACKAGE_VERSION;
+         @"blocking.\n\nTwitchAdBlock v" PACKAGE_VERSION @" (" GIT_COMMIT @")";
 }
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
   [tableView deselectRowAtIndexPath:indexPath animated:YES];

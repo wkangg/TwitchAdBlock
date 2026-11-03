@@ -12,6 +12,8 @@ INSTALL_TARGET_PROCESSES = Twitch
 
 ARCHS = arm64
 
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+
 ADDITIONAL_CFLAGS = -Wno-module-import-in-extern-c
 
 include $(THEOS)/makefiles/common.mk
@@ -19,7 +21,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = TwitchAdBlock
 
 $(TWEAK_NAME)_FILES = $(filter-out Sideloaded.x, $(wildcard *.x)) $(wildcard *.*m) fishhook/fishhook.c
-$(TWEAK_NAME)_CFLAGS = -fobjc-arc -Iinclude -DPACKAGE_VERSION=@\"$(PACKAGE_VERSION)\"
+$(TWEAK_NAME)_CFLAGS = -fobjc-arc -Iinclude -DPACKAGE_VERSION=@\"$(PACKAGE_VERSION)\" -DGIT_COMMIT=@\"$(GIT_COMMIT)\"
 $(TWEAK_NAME)_LOGOS_DEFAULT_GENERATOR = internal
 ifeq ($(SIDELOADED),1)
   $(TWEAK_NAME)_FILES += Sideloaded.x
