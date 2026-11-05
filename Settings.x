@@ -1,3 +1,4 @@
+#import <objc/runtime.h>
 #import "Settings.h"
 
 extern NSUserDefaults *tweakDefaults;
