@@ -39,6 +39,12 @@ static NSString *channelForMaster(NSURL *URL) {
   return parts[hls + 1].stringByDeletingPathExtension.lowercaseString;
 }
 
+// Same short name as the MEDIA log lines: the end of the playlist's file name
+static NSString *shortID(NSURL *URL) {
+  NSString *name = URL.path.lastPathComponent.stringByDeletingPathExtension;
+  return name.length > 8 ? [name substringFromIndex:name.length - 8] : name;
+}
+
 static NSString *queryEncode(NSString *value) {
   NSMutableCharacterSet *allowed = NSCharacterSet.URLQueryAllowedCharacterSet.mutableCopy;
   [allowed removeCharactersInString:@"&=+?#"];
@@ -52,11 +58,11 @@ static NSString *queryEncode(NSString *value) {
 @implementation TWAdBlockMediaInfo
 @end
 
-// The first segment of the last playlist given to the player, as the player numbered it
+// A channel's numbering: the first segment of the last playlist served (for lining up by date)
+// and the live number offset
 @interface TWAdBlockSequenceReference : NSObject
 @property(nonatomic, strong) NSDate *date;
 @property(nonatomic, assign) NSInteger sequence;
-@property(nonatomic, assign) NSInteger offset;
 // The player's number minus the stream's live number, NSNotFound until a playlist had one
 @property(nonatomic, assign) NSInteger liveOffset;
 @end
@@ -80,7 +86,10 @@ static NSString *queryEncode(NSString *value) {
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *lastCleanType;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *nextTypeIndex;
 @property(nonatomic, strong) NSMutableSet<NSString *> *requestedAds;
+// By channel (by playlist path when its master wasn't seen)
 @property(nonatomic, strong) NSMutableDictionary<NSString *, TWAdBlockSequenceReference *> *references;
+// Last logged offset of each original playlist
+@property(nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *offsets;
 @end
 
 @implementation TWAdBlockBackups
@@ -107,6 +116,7 @@ static NSString *queryEncode(NSString *value) {
     _nextTypeIndex = [NSMutableDictionary dictionary];
     _requestedAds = [NSMutableSet set];
     _references = [NSMutableDictionary dictionary];
+    _offsets = [NSMutableDictionary dictionary];
   }
   return self;
 }
@@ -152,10 +162,9 @@ static NSString *queryEncode(NSString *value) {
   NSString *original = hasMarkers ? TWAdBlockCleanPlaylist(text, NSNotFound) : text;
   BOOL ads = playlist.adSegments || playlist.adRanges;
   dispatch_async(self.queue, ^{
-    TWAdBlockSequenceReference *reference = self.references[URL.path];
-    // Once a backup was served, the original keeps the numbering the player saw: after a break
-    // its own numbers can run seconds ahead of the backup's for the same moment, and the player
-    // replayed those seconds
+    TWAdBlockSequenceReference *reference = [self referenceForPlaylist:playlist path:URL.path];
+    // The original keeps the numbering the player saw: after a break its own numbers run ahead
+    // of the backup's for the same moment, and the player replayed those seconds
     void (^passOriginal)(void) = ^{
       if (!reference || playlist.sequence == NSNotFound) return completion(original);
       // Ads passing through use up more numbers than the live time they replace: go by date (the
@@ -165,11 +174,12 @@ static NSString *queryEncode(NSString *value) {
       NSInteger sequence = [self sequenceForPlaylist:playlist alignedTo:reference how:&how];
       if (sequence == NSNotFound) return completion(original);
       NSInteger offset = sequence - playlist.sequence;
-      if (offset != reference.offset)
-        TWAdBlockLog(@"BACKUP original seq %ld served as %ld (offset %+ld, %@)",
+      if (offset != self.offsets[URL.path].integerValue)
+        TWAdBlockLog(@"BACKUP original %@ seq %ld served as %ld (offset %+ld, %@)", shortID(URL),
                      (long)playlist.sequence, (long)sequence, (long)offset, how);
+      if (self.offsets.count > 1000) [self.offsets removeAllObjects];
+      self.offsets[URL.path] = @(offset);
       [self remember:playlist servedAs:sequence in:reference];
-      reference.offset = offset;
       completion(offset || hasMarkers ? TWAdBlockCleanPlaylist(text, sequence) : text);
     };
     // Swap from the announcing poll on (an ad range before any ad segment), like vaft does:
@@ -265,22 +275,15 @@ static NSString *queryEncode(NSString *value) {
                                  [self.lastCleanType removeObjectForKey:info.channel];
                                return next();
                              }
-                             TWAdBlockSequenceReference *reference = self.references[path];
-                             if (!reference) {
-                               // Until now the player numbered by the original's MEDIA-SEQUENCE
-                               reference = [[TWAdBlockSequenceReference alloc] init];
-                               reference.liveOffset = NSNotFound;
-                               [self remember:playlist servedAs:playlist.sequence in:reference];
-                             }
-                             NSString *how;
-                             NSInteger sequence = [self sequenceForPlaylist:backup
-                                                                  alignedTo:reference
-                                                                        how:&how];
-                             if (sequence != NSNotFound) {
-                               if (self.references.count > 100) [self.references removeAllObjects];
+                             TWAdBlockSequenceReference *reference =
+                                 [self referenceForPlaylist:playlist path:path];
+                             NSString *how = @"no reference";
+                             NSInteger sequence = reference ? [self sequenceForPlaylist:backup
+                                                                              alignedTo:reference
+                                                                                    how:&how]
+                                                            : NSNotFound;
+                             if (sequence != NSNotFound)
                                [self remember:backup servedAs:sequence in:reference];
-                               self.references[path] = reference;
-                             }
                              TWAdBlockLog(@"BACKUP %@ %@ %@: clean, serving seq %ld (own %ld, %@)",
                                           info.channel, type, variant.video ?: variant.resolution,
                                           (long)sequence, (long)backup.sequence, how);
@@ -329,6 +332,24 @@ static NSString *queryEncode(NSString *value) {
     [description appendFormat:@", by date %ld", (long)byDate];
   *how = description;
   return sequence;
+}
+
+// One numbering per channel, set by the first playlist seen: the stream's live number plus a
+// fixed offset. MEDIA-SEQUENCE differs between masters (each counts the stitched ad segments of
+// its own session) and the app fetches new masters while you watch (at the end of a test log a
+// new playlist came in 3 ahead and the player replayed 6 s), so every variant of every master
+// gets the channel's numbering and switching playlists never moves the player
+- (TWAdBlockSequenceReference *)referenceForPlaylist:(TWAdBlockMediaPlaylist *)playlist
+                                                path:(NSString *)path {
+  NSString *key = self.media[path].channel ?: path;
+  TWAdBlockSequenceReference *reference = self.references[key];
+  if (reference || playlist.sequence == NSNotFound) return reference;
+  if (self.references.count > 1000) [self.references removeAllObjects];
+  reference = [[TWAdBlockSequenceReference alloc] init];
+  reference.liveOffset = NSNotFound;
+  [self remember:playlist servedAs:playlist.sequence in:reference];
+  self.references[key] = reference;
+  return reference;
 }
 
 - (void)remember:(TWAdBlockMediaPlaylist *)playlist
