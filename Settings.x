@@ -7,31 +7,6 @@ extern NSUserDefaults *tweakDefaults;
 - (BOOL)twab_isAdBlockRowAtIndexPath:(NSIndexPath *)indexPath tableView:(UITableView *)tableView;
 @end
 
-// TwitchCoreUI.DarkMobileUITheme / LightMobileUITheme
-@protocol TWAdBlockMobileUITheme <NSObject>
-- (UIColor *)accessoryTintColor;
-@end
-
-@interface _TtC12TwitchCoreUI21TWDefaultThemeManager (TwitchAdBlock)
-- (id<TWAdBlockMobileUITheme>)currentThemeInTraitEnvironment:(id<UITraitEnvironment>)traitEnvironment;
-@end
-
-// The theme's color for the rows' arrows. 31.x renamed the manager to plain TWDefaultThemeManager
-static UIColor *accessoryTintColor(UITableView *tableView) {
-  Class themeManagerClass = objc_getClass("TWDefaultThemeManager")
-                                ?: objc_getClass("_TtC12TwitchCoreUI21TWDefaultThemeManager");
-  id themeManager = [themeManagerClass respondsToSelector:@selector(defaultThemeManager)]
-                        ? [themeManagerClass defaultThemeManager]
-                        : nil;
-  id<TWAdBlockMobileUITheme> theme =
-      [themeManager respondsToSelector:@selector(currentThemeInTraitEnvironment:)]
-          ? [themeManager currentThemeInTraitEnvironment:tableView]
-          : nil;
-  UIColor *color =
-      [theme respondsToSelector:@selector(accessoryTintColor)] ? theme.accessoryTintColor : nil;
-  return color ?: UIColor.grayColor;
-}
-
 %hook _TtC6Twitch25AccountMenuViewController
 %new(B@:@@)
 - (BOOL)twab_isAdBlockRowAtIndexPath:(NSIndexPath *)indexPath tableView:(UITableView *)tableView {
@@ -94,9 +69,8 @@ static UIColor *accessoryTintColor(UITableView *tableView) {
              compatibleWithTraitCollection:nil];
   if (!arrowImage) arrowImage = [UIImage systemImageNamed:@"chevron.right"];
   if (!iconImage) iconImage = [UIImage systemImageNamed:@"nosign"];
-  UIImageView *arrowView = [[UIImageView alloc] initWithImage:arrowImage];
-  arrowView.tintColor = accessoryTintColor(tableView);
-  cell.accessoryView = arrowView;
+  // No tint, like Twitch's rows: the arrow takes the color it inherits
+  cell.accessoryView = [[UIImageView alloc] initWithImage:arrowImage];
   Ivar customImageViewIvar = class_getInstanceVariable(object_getClass(cell), "customImageView");
   if (!customImageViewIvar) return cell;
   UIImageView *customImageView = object_getIvar(cell, customImageViewIvar);
