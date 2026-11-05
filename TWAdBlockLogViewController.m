@@ -30,7 +30,7 @@
 }
 - (void)reload {
   NSString *contents = TWAdBlockLogContents();
-  // The log can reach 25 MB; a text view that size is unusable, so show the end (share has it all)
+  // The log can reach 5 MB; a text view that size is unusable, so show the end (share has it all)
   static const NSUInteger kShownLength = 200 * 1024;
   if (contents.length > kShownLength) {
     NSRange range = [contents rangeOfComposedCharacterSequencesForRange:NSMakeRange(

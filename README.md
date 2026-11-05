@@ -49,7 +49,7 @@ In Twitch, go to your account menu → **Settings**, then the **TwitchAdBlock** 
 | Ad Detection Log | Off | Records the stream tokens, playlists and ad breaks the player sees |
 | View Log | | Shows the end of the log and lets you share the whole file |
 
-The log lives at `Library/Caches/TwitchAdBlock.log` in the app's container (capped at 25 MB). Each entry also goes to the device log as `[TwitchAdBlock] …`. To report a problem, turn the log on, watch until it happens, then share the log along with roughly when it happened.
+The log lives at `Library/Caches/TwitchAdBlock.log` in the app's container (capped at 5 MB). Each entry also goes to the device log as `[TwitchAdBlock] …`. To report a problem, turn the log on, watch until it happens, then share the log along with roughly when it happened.
 
 To follow the device log live from a computer (along with Freemote's entries), use [pymobiledevice3](https://github.com/doronz88/pymobiledevice3):
 
