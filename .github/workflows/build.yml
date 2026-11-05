@@ -9,7 +9,7 @@ on:
         type: string
         required: true
       bundle_freemote:
-        description: "Bundle Freemote (BTTV emotes)"
+        description: "Bundle Freemote (BTTV, 7TV and FFZ emotes)"
         default: false
         type: boolean
       create_release:
