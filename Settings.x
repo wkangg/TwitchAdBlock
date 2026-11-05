@@ -49,7 +49,13 @@ extern NSUserDefaults *tweakDefaults;
       [[cellClass alloc] initWithStyle:UITableViewCellStyleSubtitle
                        reuseIdentifier:@"Twitch.ConfigurableAccessoryTableViewCell"];
   [cell configureWithTitle:@"TwitchAdBlock"];
-  if ([cell respondsToSelector:@selector(setUseDefaultBackgroundColor:)])
+  // Swift-only stored Bool in 31.x (no setter), so set the ivar; without it the cell keeps
+  // UIKit's grouped background instead of the theme's
+  Ivar defaultBackgroundIvar =
+      class_getInstanceVariable(object_getClass(cell), "useDefaultBackgroundColor");
+  if (defaultBackgroundIvar)
+    *(BOOL *)((uint8_t *)(__bridge void *)cell + ivar_getOffset(defaultBackgroundIvar)) = YES;
+  else if ([cell respondsToSelector:@selector(setUseDefaultBackgroundColor:)])
     cell.useDefaultBackgroundColor = YES;
   NSBundle *twCoreUIBundle = [NSBundle bundleWithIdentifier:@"twitch.TwitchCoreUI"];
   UIImage *arrowImage = [UIImage imageNamed:@"arrow-forward-Icon"
