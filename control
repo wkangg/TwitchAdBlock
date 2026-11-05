@@ -4,7 +4,7 @@ Version: 1.0.0
 Architecture: iphoneos-arm
 Description: Block Twitch video ads
 Depiction: https://level3tjg.me/repo/depictions/?p=com.level3tjg.twitchadblock
-Maintainer: level3tjg
+Maintainer: wkangg
 Author: level3tjg
 Section: Tweaks
 Depends: mobilesubstrate
