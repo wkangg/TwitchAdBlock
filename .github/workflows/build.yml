@@ -171,7 +171,7 @@ jobs:
       - name: Rename IPA
         id: ipa_name
         run: |
-          name="${{ steps.package_info.outputs.id }}_${{ steps.ipa_info.outputs.version }}-${{ steps.package_info.outputs.version }}-$(git rev-parse --short HEAD)${{ inputs.bundle_freemote && '+freemote' || '' }}"
+          name="$(grep "^Name:" control | cut -d' ' -f2)_${{ steps.ipa_info.outputs.version }}-${{ steps.package_info.outputs.version }}-$(git rev-parse --short HEAD)${{ inputs.bundle_freemote && '+freemote' || '' }}"
           mv -f packages/*.ipa "packages/$name.ipa"
           echo "name=$name" >> $GITHUB_OUTPUT
 
