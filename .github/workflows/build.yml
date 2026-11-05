@@ -168,10 +168,17 @@ jobs:
           SIDELOADED: 1
           COMPRESSION: 6
 
+      - name: Rename IPA
+        id: ipa_name
+        run: |
+          name="${{ steps.package_info.outputs.id }}_${{ steps.ipa_info.outputs.version }}-${{ steps.package_info.outputs.version }}-$(git rev-parse --short HEAD)${{ inputs.bundle_freemote && '+freemote' || '' }}"
+          mv -f packages/*.ipa "packages/$name.ipa"
+          echo "name=$name" >> $GITHUB_OUTPUT
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.package_info.outputs.id }}_${{ steps.ipa_info.outputs.version }}-${{ steps.package_info.outputs.version }}${{ inputs.bundle_freemote && '+freemote' || '' }}
+          name: ${{ steps.ipa_name.outputs.name }}
           path: packages/*.ipa
           if-no-files-found: error
 
