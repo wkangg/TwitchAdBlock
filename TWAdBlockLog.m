@@ -1,4 +1,5 @@
 #import "TWAdBlockLog.h"
+#import <os/log.h>
 
 extern NSUserDefaults *tweakDefaults;
 
@@ -35,6 +36,8 @@ void TWAdBlockLog(NSString *format, ...) {
     formatter = [[NSDateFormatter alloc] init];
     formatter.dateFormat = @"HH:mm:ss.SSS";
   });
+  // Also to the system log for `pymobiledevice3 syslog live`. %{public} so it isn't <private>
+  os_log(OS_LOG_DEFAULT, "[TwitchAdBlock] %{public}@", message);
   NSDate *date = [NSDate date];
   dispatch_async(logQueue(), ^{
     NSString *line =
