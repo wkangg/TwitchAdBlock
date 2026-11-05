@@ -99,7 +99,11 @@ static BOOL isAdDateRange(NSString *line) {
       }
     }
   }
-  if (!firstSegmentLive) playlist->_liveSequence = NSNotFound;
+  // MEDIA-SEQUENCE counts the live segments plus stitched ad segments, so a live number ahead of
+  // it is wrong. Seen after a maf-ad slot: LIVE stuck at 3573 for 26 s while MEDIA went 3560 to
+  // 3573, and numbering by it held the player on one window until MEDIA caught up
+  if (!firstSegmentLive || playlist->_liveSequence > playlist->_sequence)
+    playlist->_liveSequence = NSNotFound;
   playlist->_adSegmentURLs = adSegmentURLs;
   return playlist;
 }

@@ -11,7 +11,8 @@
 @property(nonatomic, readonly) NSInteger sequence;
 // EXT-X-TWITCH-LIVE-SEQUENCE: the stream's own number for the first segment, the same in every
 // player type's playlist (MEDIA-SEQUENCE also counts stitched ad segments). NSNotFound when
-// missing or the first segment is an ad
+// missing, the first segment is an ad, or it is ahead of MEDIA-SEQUENCE (can't be: it sometimes
+// sticks for a while)
 @property(nonatomic, readonly) NSInteger liveSequence;
 @property(nonatomic, readonly) NSInteger liveSegments;
 @property(nonatomic, readonly) NSInteger adSegments;
