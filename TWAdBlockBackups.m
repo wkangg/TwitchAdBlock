@@ -57,6 +57,8 @@ static NSString *queryEncode(NSString *value) {
 @property(nonatomic, strong) NSDate *date;
 @property(nonatomic, assign) NSInteger sequence;
 @property(nonatomic, assign) NSInteger offset;
+// The player's number minus the stream's live number, NSNotFound until a playlist had one
+@property(nonatomic, assign) NSInteger liveOffset;
 @end
 @implementation TWAdBlockSequenceReference
 @end
@@ -156,17 +158,17 @@ static NSString *queryEncode(NSString *value) {
     // replayed those seconds
     void (^passOriginal)(void) = ^{
       if (!reference || playlist.sequence == NSNotFound) return completion(original);
-      NSTimeInterval shift;
-      NSInteger sequence = [self sequenceForDate:playlist.firstSegmentDate
-                                       alignedTo:reference
-                                           shift:&shift];
+      // Ads passing through use up more numbers than the live time they replace: go by date (the
+      // stitched timeline the player now plays) until the next live playlist sets a new offset
+      if (playlist.adSegments) reference.liveOffset = NSNotFound;
+      NSString *how;
+      NSInteger sequence = [self sequenceForPlaylist:playlist alignedTo:reference how:&how];
       if (sequence == NSNotFound) return completion(original);
       NSInteger offset = sequence - playlist.sequence;
       if (offset != reference.offset)
-        TWAdBlockLog(@"BACKUP original seq %ld served as %ld (offset %+ld, %+.3f s)",
-                     (long)playlist.sequence, (long)sequence, (long)offset, shift);
-      reference.date = playlist.firstSegmentDate;
-      reference.sequence = sequence;
+        TWAdBlockLog(@"BACKUP original seq %ld served as %ld (offset %+ld, %@)",
+                     (long)playlist.sequence, (long)sequence, (long)offset, how);
+      [self remember:playlist servedAs:sequence in:reference];
       reference.offset = offset;
       completion(offset || hasMarkers ? TWAdBlockCleanPlaylist(text, sequence) : text);
     };
@@ -265,23 +267,23 @@ static NSString *queryEncode(NSString *value) {
                              }
                              TWAdBlockSequenceReference *reference = self.references[path];
                              if (!reference) {
+                               // Until now the player numbered by the original's MEDIA-SEQUENCE
                                reference = [[TWAdBlockSequenceReference alloc] init];
-                               reference.date = playlist.firstSegmentDate;
-                               reference.sequence = playlist.sequence;
+                               reference.liveOffset = NSNotFound;
+                               [self remember:playlist servedAs:playlist.sequence in:reference];
                              }
-                             NSTimeInterval shift;
-                             NSInteger sequence = [self sequenceForDate:backup.firstSegmentDate
-                                                              alignedTo:reference
-                                                                  shift:&shift];
+                             NSString *how;
+                             NSInteger sequence = [self sequenceForPlaylist:backup
+                                                                  alignedTo:reference
+                                                                        how:&how];
                              if (sequence != NSNotFound) {
                                if (self.references.count > 100) [self.references removeAllObjects];
-                               reference.date = backup.firstSegmentDate;
-                               reference.sequence = sequence;
+                               [self remember:backup servedAs:sequence in:reference];
                                self.references[path] = reference;
                              }
-                             TWAdBlockLog(@"BACKUP %@ %@ %@: clean, serving seq %ld (own %ld, %+.3f s)",
+                             TWAdBlockLog(@"BACKUP %@ %@ %@: clean, serving seq %ld (own %ld, %@)",
                                           info.channel, type, variant.video ?: variant.resolution,
-                                          (long)sequence, (long)backup.sequence, shift);
+                                          (long)sequence, (long)backup.sequence, how);
                              self.lastCleanType[info.channel] = type;
                              completion(TWAdBlockCleanPlaylist(text, sequence));
                            }];
@@ -302,6 +304,41 @@ static NSString *queryEncode(NSString *value) {
   NSInteger segments = (NSInteger)ceil(interval / 2.0 - 0.05);
   *shift = interval - segments * 2.0;
   return reference.sequence + segments;
+}
+
+// The player's number for a playlist's first segment: by the stream's live number when it and
+// the reference have one, else by date. After an SSAI break the original's PROGRAM-DATE-TIMEs run
+// on the stitched timeline: each break moves them by the pod's length minus the live time it
+// replaced (+1.071 s after a 101.071 s pod over 50 segments), so by date the original's first
+// segment after a break got the next number and the player replayed a 2 s segment. how says
+// which way and the date shift (> 0: the segment's date is after the moment its number stands for)
+- (NSInteger)sequenceForPlaylist:(TWAdBlockMediaPlaylist *)playlist
+                       alignedTo:(TWAdBlockSequenceReference *)reference
+                             how:(NSString **)how {
+  NSTimeInterval shift;
+  NSInteger byDate = [self sequenceForDate:playlist.firstSegmentDate alignedTo:reference shift:&shift];
+  if (playlist.liveSequence == NSNotFound || reference.liveOffset == NSNotFound) {
+    *how = [NSString stringWithFormat:@"by date, %+.3f s", shift];
+    return byDate;
+  }
+  NSInteger sequence = playlist.liveSequence + reference.liveOffset;
+  if (byDate != NSNotFound) shift += (byDate - sequence) * 2.0;
+  NSMutableString *description =
+      [NSMutableString stringWithFormat:@"live %ld, date %+.3f s", (long)playlist.liveSequence, shift];
+  if (byDate != NSNotFound && byDate != sequence)
+    [description appendFormat:@", by date %ld", (long)byDate];
+  *how = description;
+  return sequence;
+}
+
+- (void)remember:(TWAdBlockMediaPlaylist *)playlist
+        servedAs:(NSInteger)sequence
+              in:(TWAdBlockSequenceReference *)reference {
+  reference.date = playlist.firstSegmentDate;
+  reference.sequence = sequence;
+  // A playlist without one keeps the last offset: the player's numbering didn't change
+  if (playlist.liveSequence != NSNotFound && sequence != NSNotFound)
+    reference.liveOffset = sequence - playlist.liveSequence;
 }
 
 - (NSString *)keyForChannel:(NSString *)channel type:(NSString *)type {

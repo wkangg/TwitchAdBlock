@@ -9,6 +9,10 @@
 
 @interface TWAdBlockMediaPlaylist : NSObject
 @property(nonatomic, readonly) NSInteger sequence;
+// EXT-X-TWITCH-LIVE-SEQUENCE: the stream's own number for the first segment, the same in every
+// player type's playlist (MEDIA-SEQUENCE also counts stitched ad segments). NSNotFound when
+// missing or the first segment is an ad
+@property(nonatomic, readonly) NSInteger liveSequence;
 @property(nonatomic, readonly) NSInteger liveSegments;
 @property(nonatomic, readonly) NSInteger adSegments;
 // Break announcements: twitch-stitched-* ranges, EXT-X-CUE-OUT

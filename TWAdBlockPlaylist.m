@@ -53,12 +53,16 @@ static BOOL isAdDateRange(NSString *line) {
 + (instancetype)playlistWithText:(NSString *)text {
   TWAdBlockMediaPlaylist *playlist = [[self alloc] init];
   playlist->_sequence = NSNotFound;
+  playlist->_liveSequence = NSNotFound;
+  BOOL firstSegmentLive = NO;
   NSDate *pendingDate;
   NSMutableArray<NSString *> *adSegmentURLs = [NSMutableArray array];
   NSString *pendingTitle;
   for (NSString *line in lines(text)) {
     if (pendingTitle && line.length && ![line hasPrefix:@"#"]) {
-      if ([pendingTitle isEqualToString:@"live"] && !isAdSegmentURL(line)) {
+      BOOL live = [pendingTitle isEqualToString:@"live"] && !isAdSegmentURL(line);
+      if (!playlist->_liveSegments && !playlist->_adSegments) firstSegmentLive = live;
+      if (live) {
         playlist->_liveSegments++;
       } else {
         playlist->_adSegments++;
@@ -78,6 +82,8 @@ static BOOL isAdDateRange(NSString *line) {
       }
     } else if ([line hasPrefix:@"#EXT-X-MEDIA-SEQUENCE:"]) {
       playlist->_sequence = [line substringFromIndex:22].integerValue;
+    } else if ([line hasPrefix:@"#EXT-X-TWITCH-LIVE-SEQUENCE:"]) {
+      playlist->_liveSequence = [line substringFromIndex:28].integerValue;
     } else if ([line hasPrefix:@"#EXT-X-CUE-OUT"]) {
       playlist->_adRanges++;
     } else if ([line hasPrefix:@"#EXT-X-DATERANGE:"]) {
@@ -93,6 +99,7 @@ static BOOL isAdDateRange(NSString *line) {
       }
     }
   }
+  if (!firstSegmentLive) playlist->_liveSequence = NSNotFound;
   playlist->_adSegmentURLs = adSegmentURLs;
   return playlist;
 }
