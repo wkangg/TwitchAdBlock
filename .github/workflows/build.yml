@@ -12,6 +12,10 @@ on:
         description: "Bundle Freemote (BTTV, 7TV and FFZ emotes)"
         default: false
         type: boolean
+      freemote_ref:
+        description: "Freemote branch to bundle"
+        default: master
+        type: string
       create_release:
         description: "Create draft release"
         default: false
@@ -152,6 +156,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: wkangg/Freemote
+          ref: ${{ inputs.freemote_ref }}
           path: freemote
 
       - name: Inject Freemote
