@@ -185,6 +185,17 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
   }
   return self;
 }
+// 32.0: no init is visible to ObjC any more, so clear them before the view loads
+- (void)viewDidLoad {
+  if ([tweakDefaults boolForKey:@"TWAdBlockEnabled"]) {
+    // Still Optional<class> in 32.0
+    for (NSString *name in @[ @"headlinerManager", @"headlinerAdRenderer" ]) {
+      Ivar ivar = class_getInstanceVariable(object_getClass(self), name.UTF8String);
+      if (ivar) object_setIvar(self, ivar, nil);
+    }
+  }
+  %orig;
+}
 %end
 
 %hook _TtC6Twitch27HeadlinerFollowingAdManager
@@ -204,6 +215,18 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
 
 %hook TWAppUpdatePrompt
 + (void)startMonitoringSavantSettingsToShowPromptIfNeeded {
+}
+%end
+
+// 32.0 has no TWAppUpdatePrompt class (the prompt code is Swift only), so stop the prompt where
+// the app presents it (full screen modal)
+%hook UIViewController
+- (void)presentViewController:(UIViewController *)viewController
+                     animated:(BOOL)animated
+                   completion:(void (^)(void))completion {
+  Class promptClass = objc_getClass("_TtC6Twitch29AppUpdatePromptViewController");
+  if (promptClass && [viewController isKindOfClass:promptClass]) return;
+  %orig;
 }
 %end
 
