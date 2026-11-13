@@ -1,6 +1,6 @@
 #import "NSData+TwitchAdBlock.h"
 #import "TWAdBlockBackups.h"
-#import "TWAdBlockLog.h"
+#import "Log/TWAdBlockLog.h"
 
 // object[key] if it's a mutable dictionary, else nil (GQL fields can be null)
 static NSMutableDictionary *twab_dictionary(id object, NSString *key) {

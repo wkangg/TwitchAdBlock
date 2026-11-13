@@ -1,5 +1,5 @@
 #import "TWAdBlockBackups.h"
-#import "TWAdBlockLog.h"
+#import "Log/TWAdBlockLog.h"
 #import "TWAdBlockPlaylist.h"
 
 // The app's own token query (Twitch 31.x, PrefetchPlaybackAccessToken), sent as full text

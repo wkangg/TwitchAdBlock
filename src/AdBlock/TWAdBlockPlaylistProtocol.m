@@ -1,7 +1,7 @@
 #import "TWAdBlockPlaylistProtocol.h"
 #import <objc/runtime.h>
 #import "TWAdBlockBackups.h"
-#import "TWAdBlockLog.h"
+#import "Log/TWAdBlockLog.h"
 #import "TWAdBlockPlaylist.h"
 
 

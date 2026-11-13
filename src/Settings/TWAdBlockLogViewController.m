@@ -1,5 +1,5 @@
 #import "TWAdBlockLogViewController.h"
-#import "TWAdBlockLog.h"
+#import "Log/TWAdBlockLog.h"
 
 @interface TWAdBlockLogViewController ()
 @property(nonatomic, strong) UITextView *textView;
