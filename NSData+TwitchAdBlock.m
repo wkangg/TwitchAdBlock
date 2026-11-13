@@ -71,12 +71,15 @@ static NSMutableDictionary *twab_dictionary(id object, NSString *key) {
   if ([request.URL.host isEqualToString:@"gql.twitch.tv"] &&
       [request.URL.path isEqualToString:@"/gql"]) {
     // Most GQL responses have neither; skip parsing them (and partial chunks of them)
-    if (![self rangeOfData:[@"\"feedItems\"" dataUsingEncoding:NSUTF8StringEncoding]
-                   options:0
-                     range:NSMakeRange(0, self.length)].length &&
-        ![self rangeOfData:[@"\"channelSkin\"" dataUsingEncoding:NSUTF8StringEncoding]
-                   options:0
-                     range:NSMakeRange(0, self.length)].length)
+    static NSData *feedItemsKey, *channelSkinKey;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+      feedItemsKey = [@"\"feedItems\"" dataUsingEncoding:NSUTF8StringEncoding];
+      channelSkinKey = [@"\"channelSkin\"" dataUsingEncoding:NSUTF8StringEncoding];
+    });
+    NSRange all = NSMakeRange(0, self.length);
+    if (![self rangeOfData:feedItemsKey options:0 range:all].length &&
+        ![self rangeOfData:channelSkinKey options:0 range:all].length)
       return self;
     NSError *error;
     id json = [NSJSONSerialization JSONObjectWithData:self

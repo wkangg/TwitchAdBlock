@@ -138,14 +138,44 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
 }
 %end
 
-// React Native's fetch (GQL queries made by the JS theatre, e.g. ChannelSkins). Small responses
-// come in one chunk; a chunk that isn't whole JSON passes through untouched
+// React Native's fetch (GQL queries made by the JS theatre, e.g. ChannelSkins). A response can
+// arrive in several chunks, none of them whole JSON, so GQL bodies are held until the task
+// completes and handed on filtered in one piece (fetch only reads the whole body anyway).
+static const void *kGQLBufferKey = &kGQLBufferKey;
+static const void *kGQLPassthroughKey = &kGQLPassthroughKey;
+
 %hook RCTHTTPRequestHandler
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
-  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
-  %orig(session, dataTask, [data twab_responseDataForRequest:dataTask.currentRequest]);
+  // Our own flush below, or another tweak re-sending it after we've flushed
+  if (objc_getAssociatedObject(dataTask, kGQLPassthroughKey)) return %orig;
+  NSMutableData *buffer = objc_getAssociatedObject(dataTask, kGQLBufferKey);
+  if (!buffer) {
+    NSURL *url = dataTask.currentRequest.URL;
+    if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"] ||
+        ![url.host isEqualToString:@"gql.twitch.tv"] || ![url.path isEqualToString:@"/gql"])
+      return %orig;
+    buffer = [NSMutableData data];
+    objc_setAssociatedObject(dataTask, kGQLBufferKey, buffer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  }
+  [buffer appendData:data];
+}
+- (void)URLSession:(NSURLSession *)session
+                    task:(NSURLSessionTask *)task
+    didCompleteWithError:(NSError *)error {
+  NSMutableData *buffer = objc_getAssociatedObject(task, kGQLBufferKey);
+  if (!buffer) return %orig;
+  objc_setAssociatedObject(task, kGQLBufferKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  // Stays set: a tweak hooked inside this one (Freemote) can hold the body and re-send it after
+  // this returns, and that must reach React Native rather than be held again
+  objc_setAssociatedObject(task, kGQLPassthroughKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  // A failed request's body isn't read, so it's dropped
+  if (!error && buffer.length && [task isKindOfClass:NSURLSessionDataTask.class])
+    [self URLSession:session
+              dataTask:(NSURLSessionDataTask *)task
+        didReceiveData:[buffer twab_responseDataForRequest:task.currentRequest]];
+  %orig;
 }
 %end
 
