@@ -107,3 +107,5 @@ Optional inputs: `bundle_freemote` (also inject [Freemote](https://github.com/wk
 ## License
 
 [MIT](LICENSE)
+
+fishhook is under the BSD 3-Clause license, see [vendor/fishhook/LICENSE](vendor/fishhook/LICENSE).
