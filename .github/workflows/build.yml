@@ -25,6 +25,9 @@ jobs:
   deb:
     if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-24.04
+    concurrency:
+      group: deb-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - uses: actions/checkout@v7
