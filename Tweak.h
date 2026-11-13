@@ -15,3 +15,7 @@
 #import "TWAdBlockLog.h"
 #import "TWAdBlockPlaylistProtocol.h"
 #import "fishhook/fishhook.h"
+
+// React Native's fetch handler (React.framework); declared so the hook can message self under ARC
+@interface RCTHTTPRequestHandler : NSObject <NSURLSessionDataDelegate>
+@end
