@@ -17,6 +17,7 @@ Twitch inserts ads into the stream itself (server-side ad insertion, or SSAI). T
 The tweak also:
 
 - clears the client-side ad controllers (stream display ads, VAST) by hooking Swift weak references with [fishhook](https://github.com/facebook/fishhook)
+- removes sponsored channel skins (the "Ad" banner under the player with a sponsor's logo and promo line) from GraphQL responses
 - removes headliner ads from the Following tab
 - filters `FeedAd` entries out of GraphQL feed responses
 - turns off the app update prompt
