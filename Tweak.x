@@ -138,24 +138,42 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
 }
 %end
 
-// React Native's fetch (GQL queries made by the JS theatre, e.g. ChannelSkins). A response can
-// arrive in several chunks, none of them whole JSON, so GQL bodies are held until the task
-// completes and handed on filtered in one piece (fetch only reads the whole body anyway).
+// React Native's fetch: the JS theatre's ChannelSkins GQL query. A response can arrive in several
+// chunks, none of them whole JSON, so ChannelSkins responses are held until the task completes
+// and handed on filtered in one piece (fetch only reads the whole body anyway). Other requests,
+// which may want incremental data, pass through as they come.
 static const void *kGQLBufferKey = &kGQLBufferKey;
 static const void *kGQLPassthroughKey = &kGQLPassthroughKey;
+
+// Decided once, on a task's first chunk
+static BOOL shouldHoldResponse(NSURLSessionTask *task) {
+  NSURL *url = task.currentRequest.URL;
+  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"] ||
+      ![url.host isEqualToString:@"gql.twitch.tv"] || ![url.path isEqualToString:@"/gql"])
+    return NO;
+  static NSData *channelSkins;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    channelSkins = [@"ChannelSkins" dataUsingEncoding:NSUTF8StringEncoding];
+  });
+  NSData *body = task.originalRequest.HTTPBody;
+  // No body to look at (sent as a stream): hold it, it's a small GQL response either way
+  return !body || [body rangeOfData:channelSkins options:0 range:NSMakeRange(0, body.length)].length;
+}
 
 %hook RCTHTTPRequestHandler
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
-  // Our own flush below, or another tweak re-sending it after we've flushed
+  // Not held, our own flush below, or another tweak re-sending it after we've flushed
   if (objc_getAssociatedObject(dataTask, kGQLPassthroughKey)) return %orig;
   NSMutableData *buffer = objc_getAssociatedObject(dataTask, kGQLBufferKey);
   if (!buffer) {
-    NSURL *url = dataTask.currentRequest.URL;
-    if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"] ||
-        ![url.host isEqualToString:@"gql.twitch.tv"] || ![url.path isEqualToString:@"/gql"])
+    if (!shouldHoldResponse(dataTask)) {
+      // So a later chunk isn't held after this one went through (Ad Block turned on mid-response)
+      objc_setAssociatedObject(dataTask, kGQLPassthroughKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
       return %orig;
+    }
     buffer = [NSMutableData data];
     objc_setAssociatedObject(dataTask, kGQLBufferKey, buffer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   }
