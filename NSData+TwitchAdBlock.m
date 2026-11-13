@@ -2,6 +2,13 @@
 #import "TWAdBlockBackups.h"
 #import "TWAdBlockLog.h"
 
+// object[key] if it's a mutable dictionary, else nil (GQL fields can be null)
+static NSMutableDictionary *twab_dictionary(id object, NSString *key) {
+  if (![object isKindOfClass:NSDictionary.class]) return nil;
+  id value = object[key];
+  return [value isKindOfClass:NSMutableDictionary.class] ? value : nil;
+}
+
 @implementation NSData (TwitchAdBlock)
 - (NSData *)twab_requestDataForRequest:(NSURLRequest *)request {
   if (!request) return self;
@@ -68,16 +75,29 @@
                                               options:NSJSONReadingMutableContainers
                                                 error:&error];
     if (!json || error) return self;
-    if ([json isKindOfClass:NSMutableArray.class]) {
-      NSMutableArray *jsonArray = json;
-      for (NSMutableDictionary *operation in jsonArray) {
-        NSMutableDictionary *feedItems = operation[@"data"][@"feedItems"];
-        if (feedItems)
-          feedItems[@"edges"] = [feedItems[@"edges"]
-              filteredArrayUsingPredicate:[NSPredicate
-                                              predicateWithFormat:@"node.__typename != 'FeedAd'"]];
+    BOOL changed = NO;
+    NSArray *operations = [json isKindOfClass:NSArray.class] ? json : @[ json ];
+    for (NSMutableDictionary *operation in operations) {
+      NSMutableDictionary *data = twab_dictionary(operation, @"data");
+      NSMutableDictionary *feedItems = twab_dictionary(data, @"feedItems");
+      NSArray *edges = feedItems[@"edges"];
+      if ([edges isKindOfClass:NSArray.class]) {
+        feedItems[@"edges"] = [edges
+            filteredArrayUsingPredicate:[NSPredicate
+                                            predicateWithFormat:@"node.__typename != 'FeedAd'"]];
+        changed = YES;
+      }
+      // ChannelSkins: a sponsor's banner under the player ("Ad", logo, call to action). A null
+      // skin is what channels without a sponsorship get
+      NSMutableDictionary *sponsorships =
+          twab_dictionary(twab_dictionary(data, @"channel"), @"sponsorships");
+      if ([sponsorships[@"channelSkin"] isKindOfClass:NSDictionary.class]) {
+        TWAdBlockLog(@"SPONSOR channel skin removed");
+        sponsorships[@"channelSkin"] = NSNull.null;
+        changed = YES;
       }
     }
+    if (!changed) return self;
     modifiedData = [NSJSONSerialization dataWithJSONObject:json options:0 error:&error];
     if (error) return self;
   }

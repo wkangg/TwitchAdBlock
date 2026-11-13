@@ -38,10 +38,9 @@ static void logClientAdRequest(NSURLRequest *request) {
                          : [NSString stringWithFormat:@"ad playlist %.0f s ago", since]);
 }
 
-// Every edge.ads.twitch.tv request fetches an ad: the stream display ad banner under the player
-// ("Ad", logo, promo line; /ads?, fetched by the React Native theatre with fetch()), /ads/format?
-// and feed ads. RN's fetch never showed up in the task hooks below, so the block is a protocol on every
-// session: it fails the request before it leaves the device, and the banner has nothing to show.
+// Every edge.ads.twitch.tv request fetches an ad: stream display ads (/ads?, fetched by the React
+// Native theatre), /ads/format? and feed ads. A protocol on every session fails them before they
+// leave the device, whichever API made the task.
 @interface TWAdBlockAdRequestProtocol : NSURLProtocol
 @end
 
@@ -170,6 +169,17 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
 // Block ads in feed tab
 
 %hook _TtC9TwitchKit18TKURLSessionClient
+- (void)URLSession:(NSURLSession *)session
+          dataTask:(NSURLSessionDataTask *)dataTask
+    didReceiveData:(NSData *)data {
+  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
+  %orig(session, dataTask, [data twab_responseDataForRequest:dataTask.currentRequest]);
+}
+%end
+
+// React Native's fetch (GQL queries made by the JS theatre, e.g. ChannelSkins). Small responses
+// come in one chunk; a chunk that isn't whole JSON passes through untouched
+%hook RCTHTTPRequestHandler
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
