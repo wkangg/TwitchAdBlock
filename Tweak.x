@@ -38,6 +38,18 @@ static void logClientAdRequest(NSURLRequest *request) {
                          : [NSString stringWithFormat:@"ad playlist %.0f s ago", since]);
 }
 
+// Every edge.ads.twitch.tv request fetches an ad: the stream display ad banner under the player
+// ("Ad", logo, promo text; /ads?, built by the React Native theatre), /ads/format? and feed ads.
+// Point them at a scheme no session handles, so they fail at once and nothing gets shown.
+static NSURLRequest *blockClientAdRequest(NSURLRequest *request) {
+  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"] ||
+      ![request.URL.host isEqualToString:@"edge.ads.twitch.tv"])
+    return request;
+  NSMutableURLRequest *blocked = request.mutableCopy;
+  blocked.URL = [NSURL URLWithString:@"twab-blocked://edge.ads.twitch.tv/"];
+  return blocked;
+}
+
 %hook NSURLSession
 + (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration
                                   delegate:(id<NSURLSessionDelegate>)delegate
@@ -51,14 +63,15 @@ static void logClientAdRequest(NSURLRequest *request) {
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request {
   logClientAdRequest(request);
   if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
+  request = blockClientAdRequest(request);
   if (![request isKindOfClass:NSMutableURLRequest.class]) request = request.mutableCopy;
   ((NSMutableURLRequest *)request).HTTPBody = [request.HTTPBody twab_requestDataForRequest:request];
-  return %orig;
+  return %orig(request);
 }
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request
                             completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))completionHandler {
   logClientAdRequest(request);
-  return %orig;
+  return %orig(blockClientAdRequest(request), completionHandler);
 }
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request
                                          fromData:(NSData *)bodyData {
