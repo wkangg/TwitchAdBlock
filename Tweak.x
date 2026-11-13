@@ -145,12 +145,14 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
 static const void *kGQLBufferKey = &kGQLBufferKey;
 static const void *kGQLPassthroughKey = &kGQLPassthroughKey;
 
-// Decided once, on a task's first chunk
-static BOOL shouldHoldResponse(NSURLSessionTask *task) {
+static BOOL isGQLTask(NSURLSessionTask *task) {
   NSURL *url = task.currentRequest.URL;
-  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"] ||
-      ![url.host isEqualToString:@"gql.twitch.tv"] || ![url.path isEqualToString:@"/gql"])
-    return NO;
+  return [url.host isEqualToString:@"gql.twitch.tv"] && [url.path isEqualToString:@"/gql"];
+}
+
+// Decided once, on a GQL task's first chunk
+static BOOL shouldHoldResponse(NSURLSessionTask *task) {
+  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return NO;
   static NSData *channelSkins;
   static dispatch_once_t once;
   dispatch_once(&once, ^{
@@ -165,6 +167,8 @@ static BOOL shouldHoldResponse(NSURLSessionTask *task) {
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
+  // Other requests (images, other APIs) are never held
+  if (!isGQLTask(dataTask)) return %orig;
   // Not held, our own flush below, or another tweak re-sending it after we've flushed
   if (objc_getAssociatedObject(dataTask, kGQLPassthroughKey)) return %orig;
   NSMutableData *buffer = objc_getAssociatedObject(dataTask, kGQLBufferKey);
