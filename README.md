@@ -75,7 +75,7 @@ THEOS_PACKAGE_SCHEME=rootless make package  # rootless .deb
 Sideloaded builds need [theos-jailed](https://github.com/level3tjg/theos-jailed) and a decrypted IPA:
 
 ```sh
-make package SIDELOADED=1 FINALPACKAGE=1 IPA=/path/to/Twitch.ipa APP_VERSION=31.9
+make package SIDELOADED=1 FINALPACKAGE=1 IPA=/path/to/Twitch.ipa APP_VERSION=32.0
 ```
 
 Set `TW_BUNDLE_ID=tv.twitch.beta` when patching the beta app.
