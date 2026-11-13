@@ -63,7 +63,7 @@ uvx --python 3.13 pymobiledevice3 syslog live -e "\[Freemote\]" -e "\[TwitchAdBl
 The tweak uses [Theos](https://theos.dev) and Logos.
 
 ```sh
-git clone --recursive https://github.com/wkangg/TwitchAdBlock
+git clone https://github.com/wkangg/TwitchAdBlock
 cd TwitchAdBlock
 
 make package                                # rootful .deb
@@ -101,7 +101,7 @@ Optional inputs: `bundle_freemote` (also inject [Freemote](https://github.com/wk
 | `src/Log/TWAdBlockLog.m` | Debug log |
 | `src/Settings/` | Settings entry (`Settings.x`), settings screen and log viewer |
 | `include/` | Headers for the Twitch, TwitchCoreUI, TwitchKit and IVS classes that get hooked |
-| `vendor/fishhook/` | [fishhook](https://github.com/facebook/fishhook) submodule |
+| `vendor/fishhook/` | [fishhook](https://github.com/facebook/fishhook), vendored unmodified |
 | `layout/` | Localized strings bundle installed with the tweak |
 
 ## License
