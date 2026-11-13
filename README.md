@@ -63,7 +63,7 @@ uvx --python 3.13 pymobiledevice3 syslog live -e "\[Freemote\]" -e "\[TwitchAdBl
 The tweak uses [Theos](https://theos.dev) and Logos.
 
 ```sh
-git clone --recursive https://github.com/wkangg/TwitchAdBlock
+git clone https://github.com/wkangg/TwitchAdBlock
 cd TwitchAdBlock
 
 make package                                # rootful .deb
@@ -92,16 +92,20 @@ Optional inputs: `bundle_freemote` (also inject [Freemote](https://github.com/wk
 
 | File | Purpose |
 | --- | --- |
-| `Tweak.x` | Hooks: IVS session setup, GraphQL rewrites, client-side ad controllers, Following tab, update prompt |
-| `NSData+TwitchAdBlock.m` | GraphQL request and response rewriting |
-| `TWAdBlockPlaylistProtocol.m` | `NSURLProtocol` that intercepts master and media playlists |
-| `TWAdBlockPlaylist.m` | HLS parsing: ad detection, variants, cleanup |
-| `TWAdBlockBackups.m` | Backup tokens, variant matching, sequence alignment |
-| `TWAdBlockLog.m`, `TWAdBlockLogViewController.m` | Debug log and its viewer |
-| `Settings.x`, `TWAdBlockSettingsViewController.m` | Settings entry and screen |
-| `Sideloaded.x` | Sideload-only fixes: original bundle ID (for the low-latency player), keychain and app group containers |
+| `src/Tweak.x` | Hooks: IVS session setup, GraphQL rewrites, client-side ad controllers, Following tab, update prompt |
+| `src/Sideloaded.x` | Sideload-only fixes: original bundle ID (for the low-latency player), keychain and app group containers |
+| `src/AdBlock/NSData+TwitchAdBlock.m` | GraphQL request and response rewriting |
+| `src/AdBlock/TWAdBlockPlaylistProtocol.m` | `NSURLProtocol` that intercepts master and media playlists |
+| `src/AdBlock/TWAdBlockPlaylist.m` | HLS parsing: ad detection, variants, cleanup |
+| `src/AdBlock/TWAdBlockBackups.m` | Backup tokens, variant matching, sequence alignment |
+| `src/Log/TWAdBlockLog.m` | Debug log |
+| `src/Settings/` | Settings entry (`Settings.x`), settings screen and log viewer |
 | `include/` | Headers for the Twitch, TwitchCoreUI, TwitchKit and IVS classes that get hooked |
+| `vendor/fishhook/` | [fishhook](https://github.com/facebook/fishhook), vendored unmodified |
+| `layout/` | Localized strings bundle installed with the tweak |
 
 ## License
 
 [MIT](LICENSE)
+
+fishhook is under the BSD 3-Clause license, see [vendor/fishhook/LICENSE](vendor/fishhook/LICENSE).
