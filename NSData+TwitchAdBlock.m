@@ -70,6 +70,14 @@ static NSMutableDictionary *twab_dictionary(id object, NSString *key) {
   NSData *modifiedData;
   if ([request.URL.host isEqualToString:@"gql.twitch.tv"] &&
       [request.URL.path isEqualToString:@"/gql"]) {
+    // Most GQL responses have neither; skip parsing them (and partial chunks of them)
+    if (![self rangeOfData:[@"\"feedItems\"" dataUsingEncoding:NSUTF8StringEncoding]
+                   options:0
+                     range:NSMakeRange(0, self.length)].length &&
+        ![self rangeOfData:[@"\"channelSkin\"" dataUsingEncoding:NSUTF8StringEncoding]
+                   options:0
+                     range:NSMakeRange(0, self.length)].length)
+      return self;
     NSError *error;
     id json = [NSJSONSerialization JSONObjectWithData:self
                                               options:NSJSONReadingMutableContainers
@@ -82,10 +90,17 @@ static NSMutableDictionary *twab_dictionary(id object, NSString *key) {
       NSMutableDictionary *feedItems = twab_dictionary(data, @"feedItems");
       NSArray *edges = feedItems[@"edges"];
       if ([edges isKindOfClass:NSArray.class]) {
-        feedItems[@"edges"] = [edges
-            filteredArrayUsingPredicate:[NSPredicate
-                                            predicateWithFormat:@"node.__typename != 'FeedAd'"]];
-        changed = YES;
+        // Edges or nodes can be null (partial GQL errors): keep those, drop only FeedAd nodes
+        NSArray *kept = [edges filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(
+                                                               id edge, NSDictionary *bindings) {
+                                 id node = [edge isKindOfClass:NSDictionary.class] ? edge[@"node"] : nil;
+                                 return !([node isKindOfClass:NSDictionary.class] &&
+                                          [node[@"__typename"] isEqual:@"FeedAd"]);
+                               }]];
+        if (kept.count != edges.count) {
+          feedItems[@"edges"] = kept;
+          changed = YES;
+        }
       }
       // ChannelSkins: a sponsor's banner under the player ("Ad", logo, call to action). A null
       // skin is what channels without a sponsorship get

@@ -38,49 +38,10 @@ static void logClientAdRequest(NSURLRequest *request) {
                          : [NSString stringWithFormat:@"ad playlist %.0f s ago", since]);
 }
 
-// Every edge.ads.twitch.tv request fetches an ad: stream display ads (/ads?, fetched by the React
-// Native theatre), /ads/format? and feed ads. A protocol on every session fails them before they
-// leave the device, whichever API made the task.
-@interface TWAdBlockAdRequestProtocol : NSURLProtocol
-@end
-
-@implementation TWAdBlockAdRequestProtocol
-+ (BOOL)canInitWithRequest:(NSURLRequest *)request {
-  return [request.URL.host isEqualToString:@"edge.ads.twitch.tv"] &&
-         [tweakDefaults boolForKey:@"TWAdBlockEnabled"];
-}
-+ (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)request {
-  return request;
-}
-- (void)startLoading {
-  TWAdBlockLog(@"CSAI blocked %@", self.request.URL.path);
-  [self.client URLProtocol:self
-          didFailWithError:[NSError errorWithDomain:NSURLErrorDomain
-                                               code:NSURLErrorCannotConnectToHost
-                                           userInfo:nil]];
-}
-- (void)stopLoading {
-}
-@end
-
-static NSURLSessionConfiguration *configurationBlockingAdRequests(NSURLSessionConfiguration *configuration) {
-  if (!configuration || [configuration.protocolClasses containsObject:TWAdBlockAdRequestProtocol.class])
-    return configuration;
-  NSURLSessionConfiguration *copy = configuration.copy;
-  NSMutableArray *protocols = [NSMutableArray arrayWithObject:TWAdBlockAdRequestProtocol.class];
-  if (copy.protocolClasses) [protocols addObjectsFromArray:copy.protocolClasses];
-  copy.protocolClasses = protocols;
-  return copy;
-}
-
 %hook NSURLSession
-+ (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration {
-  return %orig(configurationBlockingAdRequests(configuration));
-}
 + (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration
                                   delegate:(id<NSURLSessionDelegate>)delegate
                              delegateQueue:(NSOperationQueue *)queue {
-  configuration = configurationBlockingAdRequests(configuration);
   if (![TWAdBlockPlaylistProtocol isPlayerSessionDelegate:delegate])
     return %orig(configuration, delegate, queue);
   TWAdBlockLog(@"player session created");
@@ -297,8 +258,6 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
   tweakDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"com.level3tjg.twitchadblock"];
   if (![tweakDefaults objectForKey:@"TWAdBlockEnabled"])
     [tweakDefaults setBool:YES forKey:@"TWAdBlockEnabled"];
-  // Covers NSURLSession.sharedSession, which isn't made through the hooks above
-  [NSURLProtocol registerClass:TWAdBlockAdRequestProtocol.class];
   TWAdBlockLog(@"--- launch: Twitch %@, TwitchAdBlock %@ (%@), %@",
                [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"],
                PACKAGE_VERSION, GIT_COMMIT, NSProcessInfo.processInfo.operatingSystemVersionString);
