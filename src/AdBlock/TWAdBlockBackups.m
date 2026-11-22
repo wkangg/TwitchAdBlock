@@ -30,6 +30,11 @@ static NSString *platformForPlayerType(NSString *playerType) {
 static const NSInteger kMaxTypesPerPoll = 3;
 static const NSTimeInterval kPollBudget = 3.0;
 static const NSTimeInterval kBackupLifetime = 5 * 60;
+// Under the poll budget, so a stalled request leaves time to try the next type. At 4 s a stalled
+// mobile_feed playlist used up the whole 3 s budget and the poll passed a midroll through
+static const NSTimeInterval kRequestTimeout = 1.5;
+// How long a poll that finds no backup may serve the last clean one again instead of the ads
+static const NSTimeInterval kStaleBackupLifetime = 10;
 
 static NSString *channelForMaster(NSURL *URL) {
   if (![URL.host isEqualToString:@"usher.ttvnw.net"]) return nil;
@@ -76,6 +81,14 @@ static NSString *queryEncode(NSString *value) {
 @implementation TWAdBlockBackupMaster
 @end
 
+// The last clean backup served for a playlist, already numbered for the player
+@interface TWAdBlockServedBackup : NSObject
+@property(nonatomic, copy) NSString *text;
+@property(nonatomic, strong) NSDate *date;
+@end
+@implementation TWAdBlockServedBackup
+@end
+
 @interface TWAdBlockBackups ()
 @property(nonatomic, strong) dispatch_queue_t queue;
 @property(nonatomic, strong) NSURLSession *session;
@@ -90,6 +103,8 @@ static NSString *queryEncode(NSString *value) {
 @property(nonatomic, strong) NSMutableDictionary<NSString *, TWAdBlockSequenceReference *> *references;
 // Last logged offset of each original playlist
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *offsets;
+// By playlist path
+@property(nonatomic, strong) NSMutableDictionary<NSString *, TWAdBlockServedBackup *> *servedBackups;
 @end
 
 @implementation TWAdBlockBackups
@@ -107,7 +122,7 @@ static NSString *queryEncode(NSString *value) {
     _queue = dispatch_queue_create("com.level3tjg.twitchadblock.backups", DISPATCH_QUEUE_SERIAL);
     NSURLSessionConfiguration *configuration =
         NSURLSessionConfiguration.ephemeralSessionConfiguration;
-    configuration.timeoutIntervalForRequest = 4;
+    configuration.timeoutIntervalForRequest = kRequestTimeout;
     _session = [NSURLSession sessionWithConfiguration:configuration];
     _masterURLs = [NSMutableDictionary dictionary];
     _media = [NSMutableDictionary dictionary];
@@ -117,6 +132,7 @@ static NSString *queryEncode(NSString *value) {
     _requestedAds = [NSMutableSet set];
     _references = [NSMutableDictionary dictionary];
     _offsets = [NSMutableDictionary dictionary];
+    _servedBackups = [NSMutableDictionary dictionary];
   }
   return self;
 }
@@ -207,7 +223,24 @@ static NSString *queryEncode(NSString *value) {
                 path:URL.path
             deadline:[NSDate dateWithTimeIntervalSinceNow:kPollBudget]
           completion:^(NSString *backup) {
-            if (backup) return completion(backup);
+            if (backup) {
+              TWAdBlockServedBackup *served = [[TWAdBlockServedBackup alloc] init];
+              served.text = backup;
+              served.date = [NSDate date];
+              if (self.servedBackups.count > 1000) [self.servedBackups removeAllObjects];
+              self.servedBackups[URL.path] = served;
+              return completion(backup);
+            }
+            // The same playlist again only makes the player poll again (a short stall at worst);
+            // the original would have it play the ad
+            TWAdBlockServedBackup *last = self.servedBackups[URL.path];
+            NSTimeInterval age = last ? -last.date.timeIntervalSinceNow : INFINITY;
+            if (age < kStaleBackupLifetime) {
+              TWAdBlockLog(@"BACKUP %@: serving the last clean backup again (%.1f s old)",
+                           info.channel, age);
+              return completion(last.text);
+            }
+            TWAdBlockLog(@"BACKUP %@: passing ads through", info.channel);
             passOriginal();
           }];
   });
@@ -235,7 +268,7 @@ static NSString *queryEncode(NSString *value) {
         deadline:(NSDate *)deadline
       completion:(void (^)(NSString *backup))completion {
   if (index >= types.count || deadline.timeIntervalSinceNow <= 0) {
-    TWAdBlockLog(@"BACKUP %@: no clean backup this poll, passing ads through", info.channel);
+    TWAdBlockLog(@"BACKUP %@: no clean backup this poll", info.channel);
     return completion(nil);
   }
   NSString *type = types[index];
