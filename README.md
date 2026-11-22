@@ -2,7 +2,7 @@
 
 An iOS tweak that blocks video ads in the Twitch app. It supports Twitch 31.7 through 32.1 and runs on jailbroken devices (rootful or rootless `.deb`) or sideloaded as a patched IPA.
 
-This is a fork of [level3tjg/TwitchAdBlock](https://github.com/level3tjg/TwitchAdBlock), whose maintainer no longer works on it, rewritten for Twitch 31.x.
+This is a fork of [level3tjg/TwitchAdBlock](https://github.com/level3tjg/TwitchAdBlock), whose maintainer no longer works on it, rewritten for current Twitch versions.
 
 ## How it works
 
