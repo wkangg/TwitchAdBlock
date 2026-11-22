@@ -1,6 +1,6 @@
 # TwitchAdBlock
 
-An iOS tweak that blocks video ads in the Twitch app. It works on Twitch 31.x (tested on 31.7 and 31.9) and has been updated for 32.0 and runs on jailbroken devices (rootful or rootless `.deb`) or sideloaded as a patched IPA.
+An iOS tweak that blocks video ads in the Twitch app. It supports Twitch 31.7 through 32.1 and runs on jailbroken devices (rootful or rootless `.deb`) or sideloaded as a patched IPA.
 
 This is a fork of [level3tjg/TwitchAdBlock](https://github.com/level3tjg/TwitchAdBlock), whose maintainer no longer works on it, rewritten for Twitch 31.x.
 
@@ -75,7 +75,7 @@ THEOS_PACKAGE_SCHEME=rootless make package  # rootless .deb
 Sideloaded builds need [theos-jailed](https://github.com/level3tjg/theos-jailed) and a decrypted IPA:
 
 ```sh
-make package SIDELOADED=1 FINALPACKAGE=1 IPA=/path/to/Twitch.ipa APP_VERSION=32.0
+make package SIDELOADED=1 FINALPACKAGE=1 IPA=/path/to/Twitch.ipa APP_VERSION=32.1
 ```
 
 Set `TW_BUNDLE_ID=tv.twitch.beta` when patching the beta app.
