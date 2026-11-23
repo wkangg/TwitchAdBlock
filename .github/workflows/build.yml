@@ -21,6 +21,10 @@ on:
         default: false
         type: boolean
 
+# Read-only unless a job needs more, so the token doesn't depend on the repo's default
+permissions:
+  contents: read
+
 jobs:
   deb:
     if: ${{ github.event_name == 'push' }}
@@ -53,10 +57,13 @@ jobs:
       - name: Build rootless deb
         run: make package
         env:
+          FINALPACKAGE: 1
           THEOS_PACKAGE_SCHEME: rootless
 
       - name: Build rootful deb
         run: make clean package
+        env:
+          FINALPACKAGE: 1
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
@@ -68,15 +75,23 @@ jobs:
   ipa:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
+    permissions:
+      # Create release
+      contents: write
 
     steps:
+      # This job's token can write, and it runs theos-jailed's install script and Freemote's build, so the checkouts don't
+      # leave the token in git config. Nothing here pushes.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Get package info
         id: package_info
         run: |
           echo "id=$(grep "^Package:" control | cut -d' ' -f2)" >> $GITHUB_OUTPUT
           echo "version=$(grep "^PACKAGE_VERSION =" Makefile | cut -d' ' -f3)" >> $GITHUB_OUTPUT
+          echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
         run: |
@@ -103,8 +118,10 @@ jobs:
         id: ipa_info
         run: |
           info=$(unzip -p "${{ github.workspace }}/App.ipa" Payload/*.app/Info.plist)
-          echo "bundle-id=$(echo $info | xmlstarlet sel -t -v "/plist/dict/key[text()=\"CFBundleIdentifier\"]/following-sibling::*[1]/text()")" >> $GITHUB_OUTPUT
-          echo "version=$(echo $info | xmlstarlet sel -t -v "/plist/dict/key[text()=\"CFBundleShortVersionString\"]/following-sibling::*[1]/text()")" >> $GITHUB_OUTPUT
+          # The IPA is untrusted: only bundle ID and version characters are kept, so they can't add lines to the outputs,
+          # break out of the string literals the Makefile compiles them into, or move the renamed IPA out of packages/
+          echo "bundle-id=$(echo $info | xmlstarlet sel -t -v "/plist/dict/key[text()=\"CFBundleIdentifier\"]/following-sibling::*[1]/text()" | tr -cd '0-9A-Za-z.-')" >> $GITHUB_OUTPUT
+          echo "version=$(echo $info | xmlstarlet sel -t -v "/plist/dict/key[text()=\"CFBundleShortVersionString\"]/following-sibling::*[1]/text()" | tr -cd '0-9A-Za-z._-')" >> $GITHUB_OUTPUT
 
       - name: Theos cache key
         run: echo "theos_heads=$(git ls-remote https://github.com/theos/theos HEAD | cut -f 1)-$(git ls-remote https://github.com/theos/sdks HEAD | cut -f 1)" >> $GITHUB_ENV
@@ -124,6 +141,7 @@ jobs:
           repository: level3tjg/theos-jailed
           path: theos-jailed
           submodules: recursive
+          persist-credentials: false
 
       - name: Install theos-jailed
         run: |
@@ -136,7 +154,7 @@ jobs:
         env:
           FINALPACKAGE: 1
           SIDELOADED: 1
-          # theos-jailed defaults to zip -9 for final packages, which is slow on a ~200 MB IPA
+          # theos-jailed defaults to zip -9 for final packages, which is slow on a large IPA
           COMPRESSION: 6
           IPA: ${{ github.workspace }}/App.ipa
           APP_VERSION: ${{ steps.ipa_info.outputs.version }}
@@ -149,6 +167,7 @@ jobs:
           repository: wkangg/Freemote
           ref: ${{ inputs.freemote_ref }}
           path: freemote
+          persist-credentials: false
 
       - name: Inject Freemote
         if: ${{ inputs.bundle_freemote }}
@@ -166,8 +185,15 @@ jobs:
 
       - name: Rename IPA
         id: ipa_name
+        env:
+          APP_VERSION: ${{ steps.ipa_info.outputs.version }}
+          PACKAGE_VERSION: ${{ steps.package_info.outputs.version }}
+          COMMIT: ${{ steps.package_info.outputs.commit }}
+          SUFFIX: ${{ inputs.bundle_freemote && '+freemote' || '' }}
         run: |
-          name="$(grep "^Name:" control | cut -d' ' -f2)_${{ steps.ipa_info.outputs.version }}-${{ steps.package_info.outputs.version }}-$(git rev-parse --short HEAD)${{ inputs.bundle_freemote && '+freemote' || '' }}"
+          # The version comes from the downloaded IPA, so it's passed in rather than pasted into the script
+          # e.g. TwitchAdBlock_32.1-0.4.0-eab3452+freemote
+          name="$(grep "^Name:" control | cut -d' ' -f2)_${APP_VERSION}-${PACKAGE_VERSION}-${COMMIT}${SUFFIX}"
           mv -f packages/*.ipa "packages/$name.ipa"
           echo "name=$name" >> $GITHUB_OUTPUT
 
@@ -185,3 +211,5 @@ jobs:
           draft: true
           files: packages/*.ipa
           tag_name: v${{ steps.ipa_info.outputs.version }}-${{ steps.package_info.outputs.version }}
+          # The commit that was built, not the default branch when the draft is published
+          target_commitish: ${{ github.sha }}
