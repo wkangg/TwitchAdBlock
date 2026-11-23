@@ -35,12 +35,8 @@ jobs:
       - name: Get package info
         id: package_info
         run: |
-          version=$(cat Makefile | grep "PACKAGE_VERSION =" | cut -d' ' -f3)
-          if [ -z $version ]; then
-            version=$(cat control | grep "Version:" | cut -d' ' -f2)
-          fi
-          echo "id=$(cat control | grep "Package:" | cut -d' ' -f2)" >> $GITHUB_OUTPUT
-          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "id=$(grep "^Package:" control | cut -d' ' -f2)" >> $GITHUB_OUTPUT
+          echo "version=$(grep "^PACKAGE_VERSION =" Makefile | cut -d' ' -f3)" >> $GITHUB_OUTPUT
 
       - name: Theos cache key
         run: echo "theos_heads=$(git ls-remote https://github.com/theos/theos HEAD | cut -f 1)-$(git ls-remote https://github.com/theos/sdks HEAD | cut -f 1)" >> $GITHUB_ENV
@@ -79,12 +75,8 @@ jobs:
       - name: Get package info
         id: package_info
         run: |
-          version=$(cat Makefile | grep "PACKAGE_VERSION =" | cut -d' ' -f3)
-          if [ -z $version ]; then
-            version=$(cat control | grep "Version:" | cut -d' ' -f2)
-          fi
-          echo "id=$(cat control | grep "Package:" | cut -d' ' -f2)" >> $GITHUB_OUTPUT
-          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "id=$(grep "^Package:" control | cut -d' ' -f2)" >> $GITHUB_OUTPUT
+          echo "version=$(grep "^PACKAGE_VERSION =" Makefile | cut -d' ' -f3)" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
         run: |
