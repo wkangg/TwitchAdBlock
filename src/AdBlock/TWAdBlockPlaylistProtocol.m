@@ -27,11 +27,6 @@ NSTimeInterval TWAdBlockSecondsSinceAdPlaylist(void) {
   return time ? CFAbsoluteTimeGetCurrent() - time : -1;
 }
 
-static NSString *shortID(NSURL *URL) {
-  NSString *name = URL.path.lastPathComponent.stringByDeletingPathExtension;
-  return name.length > 8 ? [name substringFromIndex:name.length - 8] : name;
-}
-
 static void logMaster(NSURL *URL, NSString *text) {
   NSURLComponents *components = [NSURLComponents componentsWithURL:URL resolvingAgainstBaseURL:NO];
   NSMutableArray *keys = [NSMutableArray array];
@@ -81,13 +76,13 @@ static void logMedia(NSURL *URL, NSString *text) {
     lastStates[key] = state;
   }
   if ([lastState isEqualToString:state]) return;
-  TWAdBlockLog(@"MEDIA %@ seq=%ld %@", shortID(URL), (long)playlist.sequence, state);
+  TWAdBlockLog(@"MEDIA %@ seq=%ld %@", TWAdBlockShortID(URL), (long)playlist.sequence, state);
   // The announcing and first ad playlist of a break, in full (a 12000-character cap used to cut
   // off the ad segments), and the first one with quartile ranges but no ads (to tell whether
   // twitch-ad-quartile can mean live video)
   if ((playlist.adSegments || playlist.adRanges || playlist.quartileRanges) &&
       ![[lastState componentsSeparatedByString:@" "].firstObject isEqualToString:kind])
-    TWAdBlockLog(@"MEDIA %@ playlist:\n%@", shortID(URL), text);
+    TWAdBlockLog(@"MEDIA %@ playlist:\n%@", TWAdBlockShortID(URL), text);
 }
 
 @interface TWAdBlockPlaylistProtocol ()
@@ -152,7 +147,7 @@ static void logMedia(NSURL *URL, NSString *text) {
             text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
           else if (error)
             TWAdBlockLog(@"%@ %@ failed: %@", isUsherMaster(URL) ? @"MASTER" : @"MEDIA",
-                         shortID(URL), error.localizedDescription);
+                         TWAdBlockShortID(URL), error.localizedDescription);
           if (!text) return [weakSelf finishWithData:data response:response error:error];
           @try {
             if (isUsherMaster(URL)) {

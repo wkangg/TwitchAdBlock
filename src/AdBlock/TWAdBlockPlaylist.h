@@ -50,3 +50,6 @@ BOOL TWAdBlockHasAdMarkers(NSString *text);
 // Drops ad DATERANGEs (so the app shows no ad UI) and, when there were any, low-latency prefetch
 // lines; unless NSNotFound, sets MEDIA-SEQUENCE
 NSString *TWAdBlockCleanPlaylist(NSString *text, NSInteger sequence);
+
+// A playlist's short name in log lines: the last 8 characters of its file name
+NSString *TWAdBlockShortID(NSURL *URL);

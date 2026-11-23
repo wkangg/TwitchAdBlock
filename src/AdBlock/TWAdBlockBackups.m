@@ -44,12 +44,6 @@ static NSString *channelForMaster(NSURL *URL) {
   return parts[hls + 1].stringByDeletingPathExtension.lowercaseString;
 }
 
-// Same short name as the MEDIA log lines: the end of the playlist's file name
-static NSString *shortID(NSURL *URL) {
-  NSString *name = URL.path.lastPathComponent.stringByDeletingPathExtension;
-  return name.length > 8 ? [name substringFromIndex:name.length - 8] : name;
-}
-
 static NSString *queryEncode(NSString *value) {
   NSMutableCharacterSet *allowed = NSCharacterSet.URLQueryAllowedCharacterSet.mutableCopy;
   [allowed removeCharactersInString:@"&=+?#"];
@@ -191,8 +185,9 @@ static NSString *queryEncode(NSString *value) {
       if (sequence == NSNotFound) return completion(original);
       NSInteger offset = sequence - playlist.sequence;
       if (offset != self.offsets[URL.path].integerValue)
-        TWAdBlockLog(@"BACKUP original %@ seq %ld served as %ld (offset %+ld, %@)", shortID(URL),
-                     (long)playlist.sequence, (long)sequence, (long)offset, how);
+        TWAdBlockLog(@"BACKUP original %@ seq %ld served as %ld (offset %+ld, %@)",
+                     TWAdBlockShortID(URL), (long)playlist.sequence, (long)sequence, (long)offset,
+                     how);
       if (self.offsets.count > 1000) [self.offsets removeAllObjects];
       self.offsets[URL.path] = @(offset);
       [self remember:playlist servedAs:sequence in:reference];

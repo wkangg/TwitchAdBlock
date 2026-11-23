@@ -193,3 +193,8 @@ NSString *TWAdBlockCleanPlaylist(NSString *text, NSInteger sequence) {
   }
   return [output componentsJoinedByString:@"\n"];
 }
+
+NSString *TWAdBlockShortID(NSURL *URL) {
+  NSString *name = URL.path.lastPathComponent.stringByDeletingPathExtension;
+  return name.length > 8 ? [name substringFromIndex:name.length - 8] : name;
+}
