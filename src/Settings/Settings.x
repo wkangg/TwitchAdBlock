@@ -56,11 +56,7 @@ extern NSUserDefaults *tweakDefaults;
       class_getInstanceVariable(object_getClass(cell), "useDefaultBackgroundColor");
   if (defaultBackgroundIvar)
     *(BOOL *)((uint8_t *)(__bridge void *)cell + ivar_getOffset(defaultBackgroundIvar)) = YES;
-  else if ([cell respondsToSelector:@selector(setUseDefaultBackgroundColor:)])
-    cell.useDefaultBackgroundColor = YES;
-  // 31.x moved the icons to TwitchCoreUIAssets.framework
-  NSBundle *twCoreUIBundle = [NSBundle bundleWithIdentifier:@"tv.twitch.TwitchCoreUIAssets"]
-                                 ?: [NSBundle bundleWithIdentifier:@"twitch.TwitchCoreUI"];
+  NSBundle *twCoreUIBundle = [NSBundle bundleWithIdentifier:@"tv.twitch.TwitchCoreUIAssets"];
   UIImage *arrowImage = [UIImage imageNamed:@"arrow-forward-Icon"
                                    inBundle:twCoreUIBundle
               compatibleWithTraitCollection:nil];
