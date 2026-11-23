@@ -49,9 +49,7 @@ static void logClientAdRequest(NSURLRequest *request) {
 }
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request {
   logClientAdRequest(request);
-  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
-  if (![request isKindOfClass:NSMutableURLRequest.class]) request = request.mutableCopy;
-  ((NSMutableURLRequest *)request).HTTPBody = [request.HTTPBody twab_requestDataForRequest:request];
+  if ([tweakDefaults boolForKey:@"TWAdBlockEnabled"]) [request.HTTPBody twab_recordTokenRequest:request];
   return %orig;
 }
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request
@@ -61,8 +59,7 @@ static void logClientAdRequest(NSURLRequest *request) {
 }
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request
                                          fromData:(NSData *)bodyData {
-  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
-  bodyData = [bodyData twab_requestDataForRequest:request];
+  if ([tweakDefaults boolForKey:@"TWAdBlockEnabled"]) [bodyData twab_recordTokenRequest:request];
   return %orig;
 }
 %end

@@ -92,9 +92,9 @@ Optional inputs: `bundle_freemote` (also inject [Freemote](https://github.com/wk
 
 | File | Purpose |
 | --- | --- |
-| `src/Tweak.x` | Hooks: IVS session setup, GraphQL rewrites, client-side ad controllers, Following tab, update prompt |
+| `src/Tweak.x` | Hooks: IVS session setup, GraphQL token requests and responses, client-side ad controllers, Following tab, update prompt |
 | `src/Sideloaded.x` | Sideload-only fixes: original bundle ID (for the low-latency player), keychain and app group containers |
-| `src/AdBlock/NSData+TwitchAdBlock.m` | GraphQL request and response rewriting |
+| `src/AdBlock/NSData+TwitchAdBlock.m` | Token request recording, GraphQL response rewriting |
 | `src/AdBlock/TWAdBlockPlaylistProtocol.m` | `NSURLProtocol` that intercepts master and media playlists |
 | `src/AdBlock/TWAdBlockPlaylist.m` | HLS parsing: ad detection, variants, cleanup |
 | `src/AdBlock/TWAdBlockBackups.m` | Backup tokens, variant matching, sequence alignment |
