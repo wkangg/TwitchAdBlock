@@ -105,10 +105,11 @@ static OSStatus hook_SecItemDelete(CFDictionaryRef query) {
 }
 
 %ctor {
-  %init;
+  // Before %init, so the NSFileManager hook never sees it nil
   fakeGroupContainerURL = [NSURL
       fileURLWithPath:[NSHomeDirectory() stringByAppendingPathComponent:@"Documents/FakeGroupContainers"]
           isDirectory:YES];
+  %init;
   loadKeychainAccessGroup();
   rebind_symbols(
       (struct rebinding[]){
