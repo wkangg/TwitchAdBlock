@@ -32,107 +32,83 @@
 
 // https://github.com/opa334/IGSideloadFix
 
-NSString *keychainAccessGroup;
-NSURL *fakeGroupContainerURL;
-
-void createDirectoryIfNotExists(NSURL *URL) {
-  if (![URL checkResourceIsReachableAndReturnError:nil]) {
-    [[NSFileManager defaultManager] createDirectoryAtURL:URL
-                             withIntermediateDirectories:YES
-                                              attributes:nil
-                                                   error:nil];
-  }
-}
-
-%group SideloadedFixes
+static NSString *keychainAccessGroup;
+static NSURL *fakeGroupContainerURL;
 
 %hook NSFileManager
 
 - (NSURL *)containerURLForSecurityApplicationGroupIdentifier:(NSString *)groupIdentifier {
   NSURL *fakeURL = [fakeGroupContainerURL URLByAppendingPathComponent:groupIdentifier];
-
-  createDirectoryIfNotExists(fakeURL);
-  createDirectoryIfNotExists([fakeURL URLByAppendingPathComponent:@"Library"]);
-  createDirectoryIfNotExists([fakeURL URLByAppendingPathComponent:@"Library/Caches"]);
-
+  // Also creates fakeURL and Library; does nothing when they exist
+  [NSFileManager.defaultManager createDirectoryAtURL:[fakeURL URLByAppendingPathComponent:@"Library/Caches"]
+                         withIntermediateDirectories:YES
+                                          attributes:nil
+                                               error:nil];
   return fakeURL;
 }
 
 %end
 
-static void loadKeychainAccessGroup() {
+static void loadKeychainAccessGroup(void) {
   NSDictionary *dummyItem = @{
     (__bridge id)kSecClass : (__bridge id)kSecClassGenericPassword,
     (__bridge id)kSecAttrAccount : @"dummyItem",
     (__bridge id)kSecAttrService : @"dummyService",
     (__bridge id)kSecReturnAttributes : @YES,
   };
-
-  CFTypeRef result;
-  OSStatus ret = SecItemCopyMatching((__bridge CFDictionaryRef)dummyItem, &result);
-  if (ret == -25300) {
-    ret = SecItemAdd((__bridge CFDictionaryRef)dummyItem, &result);
-  }
-
-  if (ret == 0 && result) {
-    NSDictionary *resultDict = (__bridge id)result;
-    keychainAccessGroup = resultDict[(__bridge id)kSecAttrAccessGroup];
-    NSLog(@"loaded keychainAccessGroup: %@", keychainAccessGroup);
-  }
+  CFTypeRef result = NULL;
+  OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)dummyItem, &result);
+  if (status == errSecItemNotFound) status = SecItemAdd((__bridge CFDictionaryRef)dummyItem, &result);
+  NSDictionary *attributes = CFBridgingRelease(result);
+  if (status == errSecSuccess) keychainAccessGroup = attributes[(__bridge id)kSecAttrAccessGroup];
 }
 
-%end
+// A copy of query with the app's own access group in place of the one it asked for (a sideloaded
+// app can't use the original's), or NULL when there's nothing to replace. Release it after use.
+static CFDictionaryRef copyWithAccessGroup(CFDictionaryRef query) {
+  if (!keychainAccessGroup || !CFDictionaryContainsKey(query, kSecAttrAccessGroup)) return NULL;
+  CFMutableDictionaryRef copy = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, query);
+  CFDictionarySetValue(copy, kSecAttrAccessGroup, (__bridge CFStringRef)keychainAccessGroup);
+  return copy;
+}
 
 static OSStatus (*orig_SecItemAdd)(CFDictionaryRef, CFTypeRef *);
 static OSStatus hook_SecItemAdd(CFDictionaryRef attributes, CFTypeRef *result) {
-  if (CFDictionaryContainsKey(attributes, kSecAttrAccessGroup)) {
-    CFMutableDictionaryRef mutableAttributes =
-        CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, attributes);
-    CFDictionarySetValue(mutableAttributes, kSecAttrAccessGroup,
-                         (__bridge void *)keychainAccessGroup);
-    attributes = CFDictionaryCreateCopy(kCFAllocatorDefault, mutableAttributes);
-  }
-  return orig_SecItemAdd(attributes, result);
+  CFDictionaryRef fixed = copyWithAccessGroup(attributes);
+  OSStatus status = orig_SecItemAdd(fixed ?: attributes, result);
+  if (fixed) CFRelease(fixed);
+  return status;
 }
 
 static OSStatus (*orig_SecItemCopyMatching)(CFDictionaryRef, CFTypeRef *);
 static OSStatus hook_SecItemCopyMatching(CFDictionaryRef query, CFTypeRef *result) {
-  if (CFDictionaryContainsKey(query, kSecAttrAccessGroup)) {
-    CFMutableDictionaryRef mutableQuery =
-        CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, query);
-    CFDictionarySetValue(mutableQuery, kSecAttrAccessGroup, (__bridge void *)keychainAccessGroup);
-    query = CFDictionaryCreateCopy(kCFAllocatorDefault, mutableQuery);
-  }
-  return orig_SecItemCopyMatching(query, result);
+  CFDictionaryRef fixed = copyWithAccessGroup(query);
+  OSStatus status = orig_SecItemCopyMatching(fixed ?: query, result);
+  if (fixed) CFRelease(fixed);
+  return status;
 }
 
 static OSStatus (*orig_SecItemUpdate)(CFDictionaryRef, CFDictionaryRef);
 static OSStatus hook_SecItemUpdate(CFDictionaryRef query, CFDictionaryRef attributesToUpdate) {
-  if (CFDictionaryContainsKey(query, kSecAttrAccessGroup)) {
-    CFMutableDictionaryRef mutableQuery =
-        CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, query);
-    CFDictionarySetValue(mutableQuery, kSecAttrAccessGroup, (__bridge void *)keychainAccessGroup);
-    query = CFDictionaryCreateCopy(kCFAllocatorDefault, mutableQuery);
-  }
-  return orig_SecItemUpdate(query, attributesToUpdate);
+  CFDictionaryRef fixed = copyWithAccessGroup(query);
+  OSStatus status = orig_SecItemUpdate(fixed ?: query, attributesToUpdate);
+  if (fixed) CFRelease(fixed);
+  return status;
 }
 
 static OSStatus (*orig_SecItemDelete)(CFDictionaryRef);
 static OSStatus hook_SecItemDelete(CFDictionaryRef query) {
-  if (CFDictionaryContainsKey(query, kSecAttrAccessGroup)) {
-    CFMutableDictionaryRef mutableQuery =
-        CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, query);
-    CFDictionarySetValue(mutableQuery, kSecAttrAccessGroup, (__bridge void *)keychainAccessGroup);
-    query = CFDictionaryCreateCopy(kCFAllocatorDefault, mutableQuery);
-  }
-  return orig_SecItemDelete(query);
+  CFDictionaryRef fixed = copyWithAccessGroup(query);
+  OSStatus status = orig_SecItemDelete(fixed ?: query);
+  if (fixed) CFRelease(fixed);
+  return status;
 }
 
-static void initSideloadedFixes() {
-  fakeGroupContainerURL =
-      [NSURL fileURLWithPath:[NSHomeDirectory()
-                                 stringByAppendingPathComponent:@"Documents/FakeGroupContainers"]
-                 isDirectory:YES];
+%ctor {
+  %init;
+  fakeGroupContainerURL = [NSURL
+      fileURLWithPath:[NSHomeDirectory() stringByAppendingPathComponent:@"Documents/FakeGroupContainers"]
+          isDirectory:YES];
   loadKeychainAccessGroup();
   rebind_symbols(
       (struct rebinding[]){
@@ -143,10 +119,4 @@ static void initSideloadedFixes() {
           {"SecItemDelete", (void *)hook_SecItemDelete, (void **)&orig_SecItemDelete},
       },
       4);
-  %init(SideloadedFixes);
-}
-
-%ctor {
-  %init;
-  initSideloadedFixes();
 }
