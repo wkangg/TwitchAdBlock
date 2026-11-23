@@ -1,14 +1,5 @@
 #import <UIKit/UIKit.h>
-#import <AmazonIVSPlayer/IVSPlayer.h>
-#import <AmazonIVSPlayer/IVSTextMetadataCue.h>
-#import <CoreServices/LSApplicationProxy.h>
-#import <Twitch/FollowingViewController.h>
-#import <Twitch/HeadlinerFollowingAdManager.h>
-#import <Twitch/LiveHLSURLProvider.h>
-#import <Twitch/TheaterViewController.h>
-#import <Twitch/URLController.h>
-#import <TwitchCoreUI/TWDefaultThemeManager.h>
-#import <TwitchKit/TKGraphQL.h>
+#import <objc/runtime.h>
 #import <rootless.h>
 
 #import "AdBlock/NSData+TwitchAdBlock.h"

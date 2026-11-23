@@ -1,4 +1,5 @@
-#include "TwitchCoreUI/TWBaseTableViewController.h"
+#import <UIKit/UIKit.h>
 
-@interface _TtC6Twitch25AccountMenuViewController : TWBaseTableViewController
+@interface _TtC6Twitch25AccountMenuViewController
+    : UIViewController <UITableViewDelegate, UITableViewDataSource>
 @end

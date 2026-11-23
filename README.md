@@ -100,7 +100,7 @@ Optional inputs: `bundle_freemote` (also inject [Freemote](https://github.com/wk
 | `src/AdBlock/TWAdBlockBackups.m` | Backup tokens, variant matching, sequence alignment |
 | `src/Log/TWAdBlockLog.m` | Debug log |
 | `src/Settings/` | Settings entry (`Settings.x`), settings screen and log viewer |
-| `include/` | Headers for the Twitch, TwitchCoreUI, TwitchKit and IVS classes that get hooked |
+| `include/` | Headers for the Twitch classes the settings entry uses |
 | `vendor/fishhook/` | [fishhook](https://github.com/facebook/fishhook), vendored unmodified |
 | `layout/` | Localized strings bundle installed with the tweak |
 

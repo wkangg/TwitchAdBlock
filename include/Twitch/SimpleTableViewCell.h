@@ -1,5 +1,5 @@
-#include "TwitchCoreUI/BaseTableViewCell.h"
+#import <UIKit/UIKit.h>
 
-@interface _TtC6Twitch19SimpleTableViewCell : _TtC12TwitchCoreUI17BaseTableViewCell
+@interface _TtC6Twitch19SimpleTableViewCell : UITableViewCell
 - (void)configureWithTitle:(NSString *)title;
 @end
