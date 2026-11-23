@@ -184,79 +184,32 @@ static BOOL shouldHoldResponse(NSURLSessionTask *task) {
 
 // Block ads in following tab
 
+// Both are Optional<class> in 31.7 through 32.1, so nil is a valid value
+static void removeHeadliners(id followingViewController) {
+  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return;
+  for (NSString *name in @[ @"headlinerManager", @"headlinerAdRenderer" ]) {
+    Ivar ivar = class_getInstanceVariable(object_getClass(followingViewController), name.UTF8String);
+    if (ivar) object_setIvar(followingViewController, ivar, nil);
+  }
+}
+
 %hook _TtC6Twitch23FollowingViewController
-- (instancetype)initWithGraphQL:(_TtC9TwitchKit9TKGraphQL *)graphQL
-                   themeManager:(_TtC12TwitchCoreUI21TWDefaultThemeManager *)themeManager {
-  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
-  self = %orig;
-  if (self) {
-    Ivar headlinerManagerIvar =
-        class_getInstanceVariable(object_getClass(self), "headlinerManager");
-    if (headlinerManagerIvar) {
-      Ivar displayAdStateManagerIvar =
-          class_getInstanceVariable(object_getClass(self), "displayAdStateManager");
-      if (displayAdStateManagerIvar) object_setIvar(self, displayAdStateManagerIvar, nil);
-    }
-  }
-  return self;
-}
-- (instancetype)initWithGraphQL:(_TtC9TwitchKit9TKGraphQL *)graphQL
-                   themeManager:(_TtC12TwitchCoreUI21TWDefaultThemeManager *)themeManager
-                  urlController:(_TtC6Twitch13URLController *)urlController {
-  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
-  self = %orig;
-  if (self) {
-    Ivar headlinerManagerIvar =
-        class_getInstanceVariable(object_getClass(self), "headlinerManager");
-    if (headlinerManagerIvar) {
-      Ivar displayAdStateManagerIvar =
-          class_getInstanceVariable(object_getClass(self), "displayAdStateManager");
-      if (displayAdStateManagerIvar) object_setIvar(self, displayAdStateManagerIvar, nil);
-    }
-  }
-  return self;
-}
 // 31.x
 - (instancetype)initWithThemeManager:(id)themeManager urlController:(id)urlController {
-  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
   self = %orig;
-  if (self) {
-    // Both are Optional<class> in 31.7, so nil is a valid value
-    for (NSString *name in @[ @"headlinerManager", @"headlinerAdRenderer" ]) {
-      Ivar ivar = class_getInstanceVariable(object_getClass(self), name.UTF8String);
-      if (ivar) object_setIvar(self, ivar, nil);
-    }
-  }
+  if (self) removeHeadliners(self);
   return self;
 }
 // 32.0: no init is visible to ObjC any more, so clear them before the view loads
 - (void)viewDidLoad {
-  if ([tweakDefaults boolForKey:@"TWAdBlockEnabled"]) {
-    // Still Optional<class> in 32.0
-    for (NSString *name in @[ @"headlinerManager", @"headlinerAdRenderer" ]) {
-      Ivar ivar = class_getInstanceVariable(object_getClass(self), name.UTF8String);
-      if (ivar) object_setIvar(self, ivar, nil);
-    }
-  }
+  removeHeadliners(self);
   %orig;
-}
-%end
-
-%hook _TtC6Twitch27HeadlinerFollowingAdManager
-+ (instancetype)shared {
-  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
-  _TtC6Twitch27HeadlinerFollowingAdManager *shared = %orig;
-  if (shared) {
-    Ivar displayAdStateManagerIvar =
-        class_getInstanceVariable(object_getClass(shared), "displayAdStateManager");
-    if (displayAdStateManagerIvar) object_setIvar(shared, displayAdStateManagerIvar, nil);
-  }
-  return shared;
 }
 %end
 
 // Block update prompt
 
+// 31.x
 %hook TWAppUpdatePrompt
 + (void)startMonitoringSavantSettingsToShowPromptIfNeeded {
 }
