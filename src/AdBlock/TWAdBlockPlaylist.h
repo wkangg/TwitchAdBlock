@@ -42,9 +42,6 @@
 - (TWAdBlockVariant *)closestIn:(NSArray<TWAdBlockVariant *> *)variants;
 @end
 
-// Value of NAME=… or NAME="…" in an attribute line
-NSString *TWAdBlockAttribute(NSString *line, NSString *name);
-
 BOOL TWAdBlockHasAdMarkers(NSString *text);
 
 // Drops ad DATERANGEs (so the app shows no ad UI) and, when there were any, low-latency prefetch

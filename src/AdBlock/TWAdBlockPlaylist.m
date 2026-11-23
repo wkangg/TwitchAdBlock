@@ -1,6 +1,7 @@
 #import "TWAdBlockPlaylist.h"
 
-NSString *TWAdBlockAttribute(NSString *line, NSString *name) {
+// Value of NAME=… or NAME="…" in an attribute line
+static NSString *TWAdBlockAttribute(NSString *line, NSString *name) {
   NSString *pattern = [NSString stringWithFormat:@"(^|[:,])%@=(\"[^\"]*\"|[^,]*)", name];
   NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern
                                                                          options:0

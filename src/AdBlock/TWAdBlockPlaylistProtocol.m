@@ -49,11 +49,8 @@ static void logMaster(NSURL *URL, NSString *text) {
     tokenInfo = [parts componentsJoinedByString:@" "];
   }
   NSMutableArray *variants = [NSMutableArray array];
-  for (NSString *line in [text componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]) {
-    if (![line hasPrefix:@"#EXT-X-STREAM-INF:"]) continue;
-    NSString *name = TWAdBlockAttribute(line, @"VIDEO") ?: TWAdBlockAttribute(line, @"RESOLUTION") ?: @"?";
-    [variants addObject:name];
-  }
+  for (TWAdBlockVariant *variant in [TWAdBlockVariant variantsInMaster:text])
+    [variants addObject:variant.video ?: variant.resolution ?: @"?"];
   TWAdBlockLog(@"MASTER %@ token[%@] variants[%@] query[%@]", URL.path.lastPathComponent, tokenInfo,
                [variants componentsJoinedByString:@","], [keys componentsJoinedByString:@","]);
 }
