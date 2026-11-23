@@ -62,7 +62,6 @@ static void logClientAdRequest(NSURLRequest *request) {
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request
                                          fromData:(NSData *)bodyData {
   if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
-  if (![request isKindOfClass:NSMutableURLRequest.class]) request = request.mutableCopy;
   bodyData = [bodyData twab_requestDataForRequest:request];
   return %orig;
 }
