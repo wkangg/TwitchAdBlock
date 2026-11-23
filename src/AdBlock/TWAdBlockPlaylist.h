@@ -24,9 +24,8 @@
 @property(nonatomic, readonly, copy) NSString *rollType;
 @property(nonatomic, readonly, copy) NSString *adTitle;
 @property(nonatomic, readonly, copy) NSArray<NSString *> *adSegmentURLs;
-// Date and duration of the first segment, to line up two playlists of the same stream
+// Date of the first segment, to line up two playlists of the same stream
 @property(nonatomic, readonly) NSDate *firstSegmentDate;
-@property(nonatomic, readonly) NSTimeInterval segmentDuration;
 + (instancetype)playlistWithText:(NSString *)text;
 - (NSString *)stateDescription;
 @end

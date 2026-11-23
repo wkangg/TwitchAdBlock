@@ -76,10 +76,7 @@ static BOOL isAdDateRange(NSString *line) {
       NSString *info = [line substringFromIndex:8];
       NSRange comma = [info rangeOfString:@","];
       pendingTitle = comma.location == NSNotFound ? @"" : [info substringFromIndex:comma.location + 1];
-      if (!playlist->_firstSegmentDate && pendingDate) {
-        playlist->_firstSegmentDate = pendingDate;
-        playlist->_segmentDuration = info.doubleValue;
-      }
+      if (!playlist->_firstSegmentDate) playlist->_firstSegmentDate = pendingDate;
     } else if ([line hasPrefix:@"#EXT-X-MEDIA-SEQUENCE:"]) {
       playlist->_sequence = [line substringFromIndex:22].integerValue;
     } else if ([line hasPrefix:@"#EXT-X-TWITCH-LIVE-SEQUENCE:"]) {
