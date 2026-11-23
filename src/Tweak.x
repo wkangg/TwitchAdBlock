@@ -78,8 +78,8 @@ static void removeAdControllers(void *ptr) {
       class_getInstanceVariable(object_getClass(obj), "theaterAdController");
   if (!theaterAdControllerIvar) return;
   id theaterAdController = object_getIvar(obj, theaterAdControllerIvar);
-  const char *ivars[] = {"displayAdController", "streamDisplayAdStateManager",
-                         "streamDisplayAdPodStateManager", "vastAdController"};
+  const char *ivars[] = {"streamDisplayAdStateManager", "streamDisplayAdPodStateManager",
+                         "vastAdController"};
   for (int i = 0; i < sizeof(ivars) / sizeof(ivars[0]); i++) {
     Ivar adControllerIvar =
         class_getInstanceVariable(object_getClass(theaterAdController), ivars[i]);
