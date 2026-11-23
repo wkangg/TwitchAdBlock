@@ -3,7 +3,6 @@
 
 #import <Foundation/Foundation.h>
 #import <dlfcn.h>
-#import <mach-o/dyld.h>
 #import "fishhook/fishhook.h"
 
 #ifndef TW_BUNDLE_ID

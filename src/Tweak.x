@@ -1,4 +1,3 @@
-#import <dlfcn.h>
 #import "Tweak.h"
 
 NSBundle *tweakBundle;
