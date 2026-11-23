@@ -69,25 +69,6 @@ static void logClientAdRequest(NSURLRequest *request) {
 }
 %end
 
-%hook AVPlayer
-- (instancetype)init {
-  self = %orig;
-  if (self) {
-    [self addObserver:self forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:NULL];
-  }
-  return self;
-}
-%new(v@:@@@^v)
-- (void)observeValueForKeyPath:(NSString *)keyPath
-                      ofObject:(id)object
-                        change:(NSDictionary<NSKeyValueChangeKey, id> *)change
-                       context:(void *)context {
-  if ([keyPath isEqualToString:@"status"] &&
-      [change[NSKeyValueChangeNewKey] integerValue] == AVPlayerStatusReadyToPlay)
-    [self play];
-}
-%end
-
 // Client-side video ad blocking
 
 static void removeAdControllers(void *ptr) {

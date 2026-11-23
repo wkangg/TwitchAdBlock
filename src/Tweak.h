@@ -1,4 +1,4 @@
-#import <AVFoundation/AVFoundation.h>
+#import <UIKit/UIKit.h>
 #import <AmazonIVSPlayer/IVSPlayer.h>
 #import <AmazonIVSPlayer/IVSTextMetadataCue.h>
 #import <CoreServices/LSApplicationProxy.h>
