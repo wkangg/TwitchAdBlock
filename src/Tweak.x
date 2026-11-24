@@ -159,7 +159,7 @@ static BOOL shouldHoldResponse(NSURLSessionTask *task) {
   NSMutableData *buffer = objc_getAssociatedObject(dataTask, kGQLBufferKey);
   if (!buffer) {
     if (!shouldHoldResponse(dataTask)) {
-      // So a later chunk isn't held after this one went through (Ad Block turned on mid-response)
+      // So a later chunk isn't held after this one went through (Hide Promotions turned on mid-response)
       objc_setAssociatedObject(dataTask, kGQLPassthroughKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
       return %orig;
     }
@@ -181,7 +181,7 @@ static BOOL shouldHoldResponse(NSURLSessionTask *task) {
   if (!error && buffer.length && [task isKindOfClass:NSURLSessionDataTask.class])
     [self URLSession:session
               dataTask:(NSURLSessionDataTask *)task
-        didReceiveData:[buffer twab_responseDataForRequest:task.currentRequest]];
+        didReceiveData:[buffer twab_responseDataForRequest:task.originalRequest]];
   %orig;
 }
 %end
@@ -246,10 +246,14 @@ static void removeHeadliners(id followingViewController) {
     tweakBundle = [NSBundle
         bundleWithPath:ROOT_PATH_NS(@"/Library/Application Support/TwitchAdBlock.bundle")];
   tweakDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"com.level3tjg.twitchadblock"];
+  // Before Hide Promotions existed, Ad Block also hid the sponsor banner: carry that over
+  if (![tweakDefaults objectForKey:@"TWAdBlockHidePromotions"])
+    [tweakDefaults setBool:[tweakDefaults objectForKey:@"TWAdBlockEnabled"]
+                               ? [tweakDefaults boolForKey:@"TWAdBlockEnabled"]
+                               : YES
+                    forKey:@"TWAdBlockHidePromotions"];
   if (![tweakDefaults objectForKey:@"TWAdBlockEnabled"])
     [tweakDefaults setBool:YES forKey:@"TWAdBlockEnabled"];
-  if (![tweakDefaults objectForKey:@"TWAdBlockHidePromotions"])
-    [tweakDefaults setBool:YES forKey:@"TWAdBlockHidePromotions"];
   TWAdBlockLog(@"--- launch: Twitch %@, TwitchAdBlock %@ (%@), %@",
                [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"],
                PACKAGE_VERSION, GIT_COMMIT, NSProcessInfo.processInfo.operatingSystemVersionString);

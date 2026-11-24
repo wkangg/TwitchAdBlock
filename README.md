@@ -18,7 +18,7 @@ The tweak also:
 
 - clears the client-side ad controllers (stream display ads, VAST) by hooking Swift weak references with [fishhook](https://github.com/facebook/fishhook)
 - removes sponsored channel skins (the "Ad" banner under the player with a sponsor's logo and promo line) from GraphQL responses (Hide Promotions)
-- hides the "Try Ad-Free" Turbo trial button on the Following tab (Hide Promotions)
+- hides the "Try Ad-Free" Turbo upsells (the Following tab button and the one in the player) (Hide Promotions)
 - removes headliner ads from the Following tab
 - filters `FeedAd` entries out of GraphQL feed responses
 - turns off the app update prompt
@@ -48,7 +48,7 @@ In Twitch, go to your account menu → **Settings**, then the **TwitchAdBlock** 
 | Setting | Default | What it does |
 | --- | --- | --- |
 | Ad Block | On | Turns ad blocking on or off |
-| Hide Promotions | On | Hides the sponsor banner under the player and the "Try Ad-Free" Turbo button (works with Ad Block off) |
+| Hide Promotions | On | Hides the sponsor banner under the player and the "Try Ad-Free" Turbo upsells (works with Ad Block off) |
 | Ad Detection Log | Off | Records the stream tokens, playlists and ad breaks the player sees |
 | View Log | | Shows the end of the log and lets you share the whole file |
 

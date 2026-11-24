@@ -67,14 +67,25 @@ static NSMutableDictionary *twab_dictionary(id object, NSString *key) {
     // Feed ads go with Ad Block; the sponsor banner and the Turbo button with Hide Promotions
     BOOL blockAds = [tweakDefaults boolForKey:@"TWAdBlockEnabled"];
     BOOL hidePromotions = [tweakDefaults boolForKey:@"TWAdBlockHidePromotions"];
-    // The "Try Ad-Free" (Turbo trial) button's query; matched by the request, since the Turbo
-    // pages fetch the same subscriptionProduct and must keep their offers
+    // The "Try Ad-Free" (Turbo upsell) query's positions in the request. Matched by the request,
+    // since the Turbo tray fetches the same subscriptionProduct and must keep its offers, and by
+    // position, since Apollo batches queries and a response lines up with its request
+    NSMutableIndexSet *turboUpsell = [NSMutableIndexSet indexSet];
     NSData *body = request.HTTPBody;
-    BOOL turboUpsell =
-        hidePromotions && body &&
-        [body rangeOfData:turboUpsellQuery options:0 range:NSMakeRange(0, body.length)].length;
+    if (hidePromotions && body &&
+        [body rangeOfData:turboUpsellQuery options:0 range:NSMakeRange(0, body.length)].length) {
+      id requestJSON = [NSJSONSerialization JSONObjectWithData:body options:0 error:nil];
+      NSArray *requests = [requestJSON isKindOfClass:NSArray.class] ? requestJSON
+                          : requestJSON                             ? @[ requestJSON ]
+                                                                    : @[];
+      [requests enumerateObjectsUsingBlock:^(id operation, NSUInteger i, BOOL *stop) {
+        if ([operation isKindOfClass:NSDictionary.class] &&
+            [operation[@"operationName"] isEqual:@"TurboUpsellButton"])
+          [turboUpsell addIndex:i];
+      }];
+    }
     NSRange all = NSMakeRange(0, self.length);
-    if (!turboUpsell &&
+    if (!turboUpsell.count &&
         !(blockAds && [self rangeOfData:feedItemsKey options:0 range:all].length) &&
         !(hidePromotions && [self rangeOfData:channelSkinKey options:0 range:all].length))
       return self;
@@ -85,8 +96,8 @@ static NSMutableDictionary *twab_dictionary(id object, NSString *key) {
     if (!json || error) return self;
     BOOL changed = NO;
     NSArray *operations = [json isKindOfClass:NSArray.class] ? json : @[ json ];
-    for (NSMutableDictionary *operation in operations) {
-      NSMutableDictionary *data = twab_dictionary(operation, @"data");
+    for (NSUInteger i = 0; i < operations.count; i++) {
+      NSMutableDictionary *data = twab_dictionary(operations[i], @"data");
       NSMutableDictionary *feedItems = twab_dictionary(data, @"feedItems");
       NSArray *edges = feedItems[@"edges"];
       if (blockAds && [edges isKindOfClass:NSArray.class]) {
@@ -114,7 +125,7 @@ static NSMutableDictionary *twab_dictionary(id object, NSString *key) {
       // useTurboUpsell shows the button only when an offer is eligible; with none it hides it
       // (subscriptionProduct.self, the user's own Turbo, is left alone)
       NSMutableDictionary *product = twab_dictionary(data, @"subscriptionProduct");
-      if (turboUpsell && [product[@"offers"] isKindOfClass:NSArray.class] &&
+      if ([turboUpsell containsIndex:i] && [product[@"offers"] isKindOfClass:NSArray.class] &&
           [product[@"offers"] count]) {
         TWAdBlockLog(@"TURBO upsell offers removed");
         product[@"offers"] = @[];
