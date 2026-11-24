@@ -110,13 +110,16 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
-  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
+  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"] &&
+      ![tweakDefaults boolForKey:@"TWAdBlockHidePromotions"])
+    return %orig;
   %orig(session, dataTask, [data twab_responseDataForRequest:dataTask.currentRequest]);
 }
 %end
 
-// React Native's fetch: the JS theatre's ChannelSkins GQL query. A response can arrive in several
-// chunks, none of them whole JSON, so ChannelSkins responses are held until the task completes
+// React Native's fetch: the JS theatre's ChannelSkins GQL query and the TurboUpsellButton query
+// ("Try Ad-Free" on the Following tab). A response can arrive in several chunks, none of them
+// whole JSON, so those responses are held until the task completes
 // and handed on filtered in one piece (fetch only reads the whole body anyway). Other requests,
 // which may want incremental data, pass through as they come.
 static const void *kGQLBufferKey = &kGQLBufferKey;
@@ -129,15 +132,20 @@ static BOOL isGQLTask(NSURLSessionTask *task) {
 
 // Decided once, on a GQL task's first chunk
 static BOOL shouldHoldResponse(NSURLSessionTask *task) {
-  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return NO;
-  static NSData *channelSkins;
+  // Both queries are only rewritten to hide promotions
+  if (![tweakDefaults boolForKey:@"TWAdBlockHidePromotions"]) return NO;
+  static NSData *channelSkins, *turboUpsell;
   static dispatch_once_t once;
   dispatch_once(&once, ^{
     channelSkins = [@"ChannelSkins" dataUsingEncoding:NSUTF8StringEncoding];
+    turboUpsell = [@"TurboUpsellButton" dataUsingEncoding:NSUTF8StringEncoding];
   });
   NSData *body = task.originalRequest.HTTPBody;
   // No body to look at (sent as a stream): hold it, it's a small GQL response either way
-  return !body || [body rangeOfData:channelSkins options:0 range:NSMakeRange(0, body.length)].length;
+  if (!body) return YES;
+  NSRange all = NSMakeRange(0, body.length);
+  return [body rangeOfData:channelSkins options:0 range:all].length ||
+         [body rangeOfData:turboUpsell options:0 range:all].length;
 }
 
 %hook RCTHTTPRequestHandler
@@ -240,6 +248,8 @@ static void removeHeadliners(id followingViewController) {
   tweakDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"com.level3tjg.twitchadblock"];
   if (![tweakDefaults objectForKey:@"TWAdBlockEnabled"])
     [tweakDefaults setBool:YES forKey:@"TWAdBlockEnabled"];
+  if (![tweakDefaults objectForKey:@"TWAdBlockHidePromotions"])
+    [tweakDefaults setBool:YES forKey:@"TWAdBlockHidePromotions"];
   TWAdBlockLog(@"--- launch: Twitch %@, TwitchAdBlock %@ (%@), %@",
                [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"],
                PACKAGE_VERSION, GIT_COMMIT, NSProcessInfo.processInfo.operatingSystemVersionString);
