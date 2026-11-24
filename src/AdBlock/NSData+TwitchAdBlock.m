@@ -2,6 +2,8 @@
 #import "TWAdBlockBackups.h"
 #import "Log/TWAdBlockLog.h"
 
+extern NSUserDefaults *tweakDefaults;
+
 // object[key] if it's a mutable dictionary, else nil (GQL fields can be null)
 static NSMutableDictionary *twab_dictionary(id object, NSString *key) {
   if (![object isKindOfClass:NSDictionary.class]) return nil;
@@ -55,15 +57,37 @@ static NSMutableDictionary *twab_dictionary(id object, NSString *key) {
   if ([request.URL.host isEqualToString:@"gql.twitch.tv"] &&
       [request.URL.path isEqualToString:@"/gql"]) {
     // Most GQL responses have neither; skip parsing them (and partial chunks of them)
-    static NSData *feedItemsKey, *channelSkinKey;
+    static NSData *feedItemsKey, *channelSkinKey, *turboUpsellQuery;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
       feedItemsKey = [@"\"feedItems\"" dataUsingEncoding:NSUTF8StringEncoding];
       channelSkinKey = [@"\"channelSkin\"" dataUsingEncoding:NSUTF8StringEncoding];
+      turboUpsellQuery = [@"TurboUpsellButton" dataUsingEncoding:NSUTF8StringEncoding];
     });
+    // Feed ads go with Ad Block; the sponsor banner and the Turbo button with Hide Promotions
+    BOOL blockAds = [tweakDefaults boolForKey:@"TWAdBlockEnabled"];
+    BOOL hidePromotions = [tweakDefaults boolForKey:@"TWAdBlockHidePromotions"];
+    // The "Try Ad-Free" (Turbo upsell) query's positions in the request. Matched by the request,
+    // since the Turbo tray fetches the same subscriptionProduct and must keep its offers, and by
+    // position, since Apollo batches queries and a response lines up with its request
+    NSMutableIndexSet *turboUpsell = [NSMutableIndexSet indexSet];
+    NSData *body = request.HTTPBody;
+    if (hidePromotions && body &&
+        [body rangeOfData:turboUpsellQuery options:0 range:NSMakeRange(0, body.length)].length) {
+      id requestJSON = [NSJSONSerialization JSONObjectWithData:body options:0 error:nil];
+      NSArray *requests = [requestJSON isKindOfClass:NSArray.class] ? requestJSON
+                          : requestJSON                             ? @[ requestJSON ]
+                                                                    : @[];
+      [requests enumerateObjectsUsingBlock:^(id operation, NSUInteger i, BOOL *stop) {
+        if ([operation isKindOfClass:NSDictionary.class] &&
+            [operation[@"operationName"] isEqual:@"TurboUpsellButton"])
+          [turboUpsell addIndex:i];
+      }];
+    }
     NSRange all = NSMakeRange(0, self.length);
-    if (![self rangeOfData:feedItemsKey options:0 range:all].length &&
-        ![self rangeOfData:channelSkinKey options:0 range:all].length)
+    if (!turboUpsell.count &&
+        !(blockAds && [self rangeOfData:feedItemsKey options:0 range:all].length) &&
+        !(hidePromotions && [self rangeOfData:channelSkinKey options:0 range:all].length))
       return self;
     NSError *error;
     id json = [NSJSONSerialization JSONObjectWithData:self
@@ -72,11 +96,11 @@ static NSMutableDictionary *twab_dictionary(id object, NSString *key) {
     if (!json || error) return self;
     BOOL changed = NO;
     NSArray *operations = [json isKindOfClass:NSArray.class] ? json : @[ json ];
-    for (NSMutableDictionary *operation in operations) {
-      NSMutableDictionary *data = twab_dictionary(operation, @"data");
+    for (NSUInteger i = 0; i < operations.count; i++) {
+      NSMutableDictionary *data = twab_dictionary(operations[i], @"data");
       NSMutableDictionary *feedItems = twab_dictionary(data, @"feedItems");
       NSArray *edges = feedItems[@"edges"];
-      if ([edges isKindOfClass:NSArray.class]) {
+      if (blockAds && [edges isKindOfClass:NSArray.class]) {
         // Edges or nodes can be null (partial GQL errors): keep those, drop only FeedAd nodes
         NSArray *kept = [edges filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(
                                                                id edge, NSDictionary *bindings) {
@@ -93,9 +117,18 @@ static NSMutableDictionary *twab_dictionary(id object, NSString *key) {
       // skin is what channels without a sponsorship get
       NSMutableDictionary *sponsorships =
           twab_dictionary(twab_dictionary(data, @"channel"), @"sponsorships");
-      if ([sponsorships[@"channelSkin"] isKindOfClass:NSDictionary.class]) {
+      if (hidePromotions && [sponsorships[@"channelSkin"] isKindOfClass:NSDictionary.class]) {
         TWAdBlockLog(@"SPONSOR channel skin removed");
         sponsorships[@"channelSkin"] = NSNull.null;
+        changed = YES;
+      }
+      // useTurboUpsell shows the button only when an offer is eligible; with none it hides it
+      // (subscriptionProduct.self, the user's own Turbo, is left alone)
+      NSMutableDictionary *product = twab_dictionary(data, @"subscriptionProduct");
+      if ([turboUpsell containsIndex:i] && [product[@"offers"] isKindOfClass:NSArray.class] &&
+          [product[@"offers"] count]) {
+        TWAdBlockLog(@"TURBO upsell offers removed");
+        product[@"offers"] = @[];
         changed = YES;
       }
     }

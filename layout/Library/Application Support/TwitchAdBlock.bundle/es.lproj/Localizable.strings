@@ -1,2 +1,4 @@
 "settings.adblock.title"="Bloqueo de anuncios";
 "settings.adblock.footer"="Elige si quieres bloquear los anuncios";
+"settings.hidepromotions.title"="Ocultar promociones";
+"settings.hidepromotions.footer"="Oculta los banners de patrocinadores bajo el reproductor y el botón \"Prueba sin anuncios\" de Turbo";

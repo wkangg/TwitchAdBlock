@@ -1,2 +1,4 @@
 "settings.adblock.title"="Ad Block";
 "settings.adblock.footer"="Choose whether or not you want to block ads";
+"settings.hidepromotions.title"="Hide Promotions";
+"settings.hidepromotions.footer"="Hides sponsor banners under the player and the \"Try Ad-Free\" Turbo button";

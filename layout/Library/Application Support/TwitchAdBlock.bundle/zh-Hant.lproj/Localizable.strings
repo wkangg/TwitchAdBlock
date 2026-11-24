@@ -1,2 +1,4 @@
 "settings.adblock.title"="阻擋廣告";
 "settings.adblock.footer"="選擇您是否要阻擋廣告";
+"settings.hidepromotions.title"="隱藏推廣內容";
+"settings.hidepromotions.footer"="隱藏播放器下方的贊助橫幅與 Turbo「免廣告試用」按鈕";

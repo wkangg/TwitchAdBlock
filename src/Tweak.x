@@ -110,13 +110,16 @@ static void *hook_swift_unknownObjectWeakLoadStrong(void *ref) {
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data {
-  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return %orig;
+  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"] &&
+      ![tweakDefaults boolForKey:@"TWAdBlockHidePromotions"])
+    return %orig;
   %orig(session, dataTask, [data twab_responseDataForRequest:dataTask.currentRequest]);
 }
 %end
 
-// React Native's fetch: the JS theatre's ChannelSkins GQL query. A response can arrive in several
-// chunks, none of them whole JSON, so ChannelSkins responses are held until the task completes
+// React Native's fetch: the JS theatre's ChannelSkins GQL query and the TurboUpsellButton query
+// ("Try Ad-Free" on the Following tab). A response can arrive in several chunks, none of them
+// whole JSON, so those responses are held until the task completes
 // and handed on filtered in one piece (fetch only reads the whole body anyway). Other requests,
 // which may want incremental data, pass through as they come.
 static const void *kGQLBufferKey = &kGQLBufferKey;
@@ -129,15 +132,20 @@ static BOOL isGQLTask(NSURLSessionTask *task) {
 
 // Decided once, on a GQL task's first chunk
 static BOOL shouldHoldResponse(NSURLSessionTask *task) {
-  if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return NO;
-  static NSData *channelSkins;
+  // Both queries are only rewritten to hide promotions
+  if (![tweakDefaults boolForKey:@"TWAdBlockHidePromotions"]) return NO;
+  static NSData *channelSkins, *turboUpsell;
   static dispatch_once_t once;
   dispatch_once(&once, ^{
     channelSkins = [@"ChannelSkins" dataUsingEncoding:NSUTF8StringEncoding];
+    turboUpsell = [@"TurboUpsellButton" dataUsingEncoding:NSUTF8StringEncoding];
   });
   NSData *body = task.originalRequest.HTTPBody;
   // No body to look at (sent as a stream): hold it, it's a small GQL response either way
-  return !body || [body rangeOfData:channelSkins options:0 range:NSMakeRange(0, body.length)].length;
+  if (!body) return YES;
+  NSRange all = NSMakeRange(0, body.length);
+  return [body rangeOfData:channelSkins options:0 range:all].length ||
+         [body rangeOfData:turboUpsell options:0 range:all].length;
 }
 
 %hook RCTHTTPRequestHandler
@@ -151,7 +159,7 @@ static BOOL shouldHoldResponse(NSURLSessionTask *task) {
   NSMutableData *buffer = objc_getAssociatedObject(dataTask, kGQLBufferKey);
   if (!buffer) {
     if (!shouldHoldResponse(dataTask)) {
-      // So a later chunk isn't held after this one went through (Ad Block turned on mid-response)
+      // So a later chunk isn't held after this one went through (Hide Promotions turned on mid-response)
       objc_setAssociatedObject(dataTask, kGQLPassthroughKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
       return %orig;
     }
@@ -173,7 +181,7 @@ static BOOL shouldHoldResponse(NSURLSessionTask *task) {
   if (!error && buffer.length && [task isKindOfClass:NSURLSessionDataTask.class])
     [self URLSession:session
               dataTask:(NSURLSessionDataTask *)task
-        didReceiveData:[buffer twab_responseDataForRequest:task.currentRequest]];
+        didReceiveData:[buffer twab_responseDataForRequest:task.originalRequest]];
   %orig;
 }
 %end
@@ -238,6 +246,12 @@ static void removeHeadliners(id followingViewController) {
     tweakBundle = [NSBundle
         bundleWithPath:ROOT_PATH_NS(@"/Library/Application Support/TwitchAdBlock.bundle")];
   tweakDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"com.level3tjg.twitchadblock"];
+  // Before Hide Promotions existed, Ad Block also hid the sponsor banner: carry that over
+  if (![tweakDefaults objectForKey:@"TWAdBlockHidePromotions"])
+    [tweakDefaults setBool:[tweakDefaults objectForKey:@"TWAdBlockEnabled"]
+                               ? [tweakDefaults boolForKey:@"TWAdBlockEnabled"]
+                               : YES
+                    forKey:@"TWAdBlockHidePromotions"];
   if (![tweakDefaults objectForKey:@"TWAdBlockEnabled"])
     [tweakDefaults setBool:YES forKey:@"TWAdBlockEnabled"];
   TWAdBlockLog(@"--- launch: Twitch %@, TwitchAdBlock %@ (%@), %@",
