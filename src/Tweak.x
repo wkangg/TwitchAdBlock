@@ -79,7 +79,7 @@ static void removeAdControllers(void *ptr) {
     Ivar adControllerIvar =
         class_getInstanceVariable(object_getClass(theaterAdController), ivars[i]);
     if (!adControllerIvar) continue;
-    // All Optional<class> in 31.7 through 32.1, so reading them is safe; logs once per controller
+    // All Optional<class> in 31.7 through 32.2, so reading them is safe; logs once per controller
     // cleared
     id adController = object_getIvar(theaterAdController, adControllerIvar);
     if (!adController) continue;
@@ -188,7 +188,7 @@ static BOOL shouldHoldResponse(NSURLSessionTask *task) {
 
 // Block ads in following tab
 
-// Both are Optional<class> in 31.7 through 32.1, so nil is a valid value
+// Both are Optional<class> in 31.7 through 32.2, so nil is a valid value
 static void removeHeadliners(id followingViewController) {
   if (![tweakDefaults boolForKey:@"TWAdBlockEnabled"]) return;
   for (NSString *name in @[ @"headlinerManager", @"headlinerAdRenderer" ]) {
